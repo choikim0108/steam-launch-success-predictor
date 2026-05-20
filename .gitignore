@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Data and generated outputs
+data/raw/
+data/interim/
+data/processed/
+reports/figures/
+*.csv
+*.xlsx
+*.pdf
+
+# Environment
+.env
+.DS_Store
