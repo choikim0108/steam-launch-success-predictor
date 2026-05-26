@@ -1,0 +1,14 @@
+{
+  "include": ["src"],
+  "extraPaths": ["src"],
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnknownMemberType": "none",
+  "reportUnknownParameterType": "none",
+  "reportUnknownArgumentType": "none",
+  "reportMissingParameterType": "none",
+  "reportAny": "none",
+  "reportUnusedCallResult": "none"
+}
