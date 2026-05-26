@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Steam 성공 예측 인터랙티브 리포트</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 28px; color: #111827; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
+.card { border: 1px solid #d1d5db; border-radius: 10px; padding: 16px; margin: 14px 0; }
+.bar-row { display: grid; grid-template-columns: 180px 1fr 90px; gap: 10px; align-items: center; margin: 8px 0; }
+.bar-bg { background: #e5e7eb; border-radius: 999px; overflow: hidden; height: 18px; }
+.bar { background: #2563eb; height: 18px; }
+.small { color: #6b7280; font-size: 0.92em; }
+</style>
+</head>
+<body>
+<h1>Steam 출시 성공 예측 인터랙티브 리포트</h1>
+<p>체크박스로 분석 기준을 선택하면 장르, 가격대, 플랫폼, 외부 관심도 등 기준별 성공률 그래프가 표시됩니다.</p>
+<div id="summary"></div>
+<div class="card"><h2>결론</h2><h3>간략 버전</h3><p id="briefConclusion"></p><h3>상세 버전</h3><p id="detailConclusion"></p></div>
+<div class="controls" id="controls"></div>
+<div id="sections"></div>
+<script>
+const data = {"labels": {"genre": "장르", "category": "상점 카테고리/기능", "price_band": "가격대", "language_band": "지원 언어 수", "platform_count": "지원 플랫폼 수", "multiplayer": "멀티플레이 여부", "external_attention": "외부 웹 관심도"}, "sections": {"genre": [{"criteria": "genre", "criteria_value": "Sports", "game_count": 3, "success_count": 2, "success_rate": 0.6666666666666666}, {"criteria": "genre", "criteria_value": "Early Access", "game_count": 13, "success_count": 6, "success_rate": 0.4615384615384615}, {"criteria": "genre", "criteria_value": "RPG", "game_count": 9, "success_count": 4, "success_rate": 0.4444444444444444}, {"criteria": "genre", "criteria_value": "Adventure", "game_count": 16, "success_count": 7, "success_rate": 0.4375}, {"criteria": "genre", "criteria_value": "Simulation", "game_count": 16, "success_count": 6, "success_rate": 0.375}, {"criteria": "genre", "criteria_value": "Action", "game_count": 19, "success_count": 7, "success_rate": 0.3684210526315789}, {"criteria": "genre", "criteria_value": "Strategy", "game_count": 9, "success_count": 3, "success_rate": 0.3333333333333333}, {"criteria": "genre", "criteria_value": "Indie", "game_count": 26, "success_count": 8, "success_rate": 0.3076923076923077}, {"criteria": "genre", "criteria_value": "Casual", "game_count": 11, "success_count": 3, "success_rate": 0.2727272727272727}], "category": [{"criteria": "category", "criteria_value": "Online PvP", "game_count": 5, "success_count": 3, "success_rate": 0.6}, {"criteria": "category", "criteria_value": "PvP", "game_count": 5, "success_count": 3, "success_rate": 0.6}, {"criteria": "category", "criteria_value": "Steam Trading Cards", "game_count": 5, "success_count": 3, "success_rate": 0.6}, {"criteria": "category", "criteria_value": "Surround Sound", "game_count": 7, "success_count": 4, "success_rate": 0.5714285714285714}, {"criteria": "category", "criteria_value": "Remote Play Together", "game_count": 4, "success_count": 2, "success_rate": 0.5}, {"criteria": "category", "criteria_value": "Shared/Split Screen", "game_count": 4, "success_count": 2, "success_rate": 0.5}, {"criteria": "category", "criteria_value": "Adjustable Text Size", "game_count": 5, "success_count": 2, "success_rate": 0.4}, {"criteria": "category", "criteria_value": "Stereo Sound", "game_count": 18, "success_count": 7, "success_rate": 0.3888888888888889}, {"criteria": "category", "criteria_value": "Online Co-op", "game_count": 13, "success_count": 5, "success_rate": 0.3846153846153846}, {"criteria": "category", "criteria_value": "Save Anytime", "game_count": 13, "success_count": 5, "success_rate": 0.3846153846153846}, {"criteria": "category", "criteria_value": "Full controller support", "game_count": 24, "success_count": 9, "success_rate": 0.375}, {"criteria": "category", "criteria_value": "Co-op", "game_count": 16, "success_count": 6, "success_rate": 0.375}], "price_band": [{"criteria": "price_band", "criteria_value": "60_plus", "game_count": 2, "success_count": 2, "success_rate": 1.0}, {"criteria": "price_band", "criteria_value": "30_to_60", "game_count": 4, "success_count": 2, "success_rate": 0.5}, {"criteria": "price_band", "criteria_value": "10_to_30", "game_count": 23, "success_count": 7, "success_rate": 0.3043478260869565}, {"criteria": "price_band", "criteria_value": "under_10", "game_count": 10, "success_count": 3, "success_rate": 0.3}], "language_band": [{"criteria": "language_band", "criteria_value": "16_30", "game_count": 6, "success_count": 4, "success_rate": 0.6666666666666666}, {"criteria": "language_band", "criteria_value": "1_5", "game_count": 7, "success_count": 3, "success_rate": 0.4285714285714285}, {"criteria": "language_band", "criteria_value": "6_15", "game_count": 26, "success_count": 7, "success_rate": 0.2692307692307692}], "platform_count": [{"criteria": "platform_count", "criteria_value": "1 platforms", "game_count": 27, "success_count": 11, "success_rate": 0.4074074074074074}, {"criteria": "platform_count", "criteria_value": "3 platforms", "game_count": 3, "success_count": 1, "success_rate": 0.3333333333333333}, {"criteria": "platform_count", "criteria_value": "2 platforms", "game_count": 9, "success_count": 2, "success_rate": 0.2222222222222222}], "multiplayer": [{"criteria": "multiplayer", "criteria_value": "yes", "game_count": 19, "success_count": 7, "success_rate": 0.3684210526315789}, {"criteria": "multiplayer", "criteria_value": "no", "game_count": 20, "success_count": 7, "success_rate": 0.35}], "external_attention": [{"criteria": "external_attention", "criteria_value": "high", "game_count": 10, "success_count": 10, "success_rate": 1.0}, {"criteria": "external_attention", "criteria_value": "medium", "game_count": 2, "success_count": 2, "success_rate": 1.0}, {"criteria": "external_attention", "criteria_value": "none", "game_count": 27, "success_count": 2, "success_rate": 0.074074074074074}]}, "summary": {"rows": 39, "success": 14, "failure": 25, "metrics": {"model": "random_forest", "accuracy": 1.0, "precision": 1.0, "recall": 1.0, "f1": 1.0, "roc_auc": 1.0}, "conclusions": {"brief": "현재 표본 39개 중 성공 기준 충족 게임은 14개(35.9%)입니다. 이번 실행에서는 random_forest가 F1 1.000로 가장 높았고, 상위 장르 경향은 Sports (성공률 66.7%, n=3)입니다.", "detail": "이 모델은 실제 매출이 아니라 리뷰 500개 이상 및 긍정률 80% 이상이라는 운영상 성공 기준을 예측합니다. 현재 실행에서 random_forest는 Accuracy 1.000, F1 1.000로 선택됐습니다. Random Forest는 비선형 관계와 변수 상호작용을 다룰 수 있어 가격, 언어 수, 카테고리 수, 외부 관심도처럼 성격이 다른 변수를 함께 쓸 때 현재 실험에서는 적합합니다. 다만 표본 수가 작고 외부 관심도는 검색 결과 proxy이므로, 최종 보고서에서는 '현재 수집 표본에서 가장 성능이 좋았다'고 표현해야 합니다. 가격대 경향은 60_plus (성공률 100.0%, n=2), 외부 웹 관심도 경향은 high (성공률 100.0%, n=10)로 요약됩니다."}}};
+const summary = data.summary;
+document.getElementById('briefConclusion').textContent = summary.conclusions.brief;
+document.getElementById('detailConclusion').textContent = summary.conclusions.detail;
+document.getElementById('summary').innerHTML = `<div class="card"><b>데이터</b>: ${summary.rows}개 게임, 성공 ${summary.success}개, 비성공 ${summary.failure}개<br><b>모델</b>: ${summary.metrics.model || ''}, F1=${Number(summary.metrics.f1 || 0).toFixed(3)}, Accuracy=${Number(summary.metrics.accuracy || 0).toFixed(3)}<p class="small">F1은 성공/실패 예측의 precision과 recall을 함께 보는 지표입니다.</p></div>`;
+const controls = document.getElementById('controls');
+Object.entries(data.labels).forEach(([key, label]) => {
+  controls.insertAdjacentHTML('beforeend', `<label><input type="checkbox" checked value="${key}" onchange="render()"> ${label}</label>`);
+});
+function sectionHtml(key) {
+  const rows = data.sections[key] || [];
+  const label = data.labels[key];
+  if (!rows.length) return `<div class="card"><h2>${label}</h2><p>표시할 데이터가 없습니다.</p></div>`;
+  const bars = rows.map(row => {
+    const rate = Number(row.success_rate || 0);
+    const pct = Math.round(rate * 1000) / 10;
+    return `<div class="bar-row"><div>${row.criteria_value}</div><div class="bar-bg"><div class="bar" style="width:${pct}%"></div></div><div>${pct}%</div></div><div class="small">성공 ${row.success_count} / 전체 ${row.game_count}</div>`;
+  }).join('');
+  return `<div class="card"><h2>${label}</h2>${bars}</div>`;
+}
+function render() {
+  const selected = [...document.querySelectorAll('input[type=checkbox]:checked')].map(input => input.value);
+  document.getElementById('sections').innerHTML = selected.map(sectionHtml).join('');
+}
+render();
+</script>
+</body>
+</html>

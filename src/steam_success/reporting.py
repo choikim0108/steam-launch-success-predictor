@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from pypdf import PdfReader
 
@@ -178,13 +179,15 @@ def write_run_summary(reports_dir: Path, dataset: pd.DataFrame, result: dict[str
         "## 주요 피처 중요도",
     ]
     text += [f"- {row.feature}: {row.importance:.4f}" for row in top_features.itertuples()]
-    genre_summary = _genre_success_summary(dataset)
+    criteria_tables = build_criteria_tables(dataset)
+    genre_summary = criteria_tables["genre"]
+    for name, table in criteria_tables.items():
+        table.to_csv(reports_dir / f"criteria_{name}.csv", index=False)
     conclusion_path = reports_dir / "CONCLUSIONS.md"
-    write_conclusions_doc(conclusion_path, dataset, best_row, genre_summary)
-    genre_summary.to_csv(reports_dir / "genre_success_summary.csv", index=False)
+    write_conclusions_doc(conclusion_path, dataset, best_row, criteria_tables)
     text += ["", "## 장르별 결론 상위 항목"]
     text += [
-        f"- {row.genre}: 성공 {int(row.success_count)}개 / 전체 {int(row.game_count)}개, 성공률 {row.success_rate:.1%}"
+        f"- {row.criteria_value}: 성공 {int(row.success_count)}개 / 전체 {int(row.game_count)}개, 성공률 {row.success_rate:.1%}"
         for row in genre_summary.head(8).itertuples()
     ]
     text += ["", "## 생성 차트"]
@@ -208,13 +211,90 @@ def _genre_success_summary(dataset: pd.DataFrame) -> pd.DataFrame:
     return summary[summary["game_count"] >= 3].sort_values(["success_rate", "success_count", "game_count"], ascending=False)
 
 
-def write_conclusions_doc(output_path: Path, dataset: pd.DataFrame, best_row: dict[str, object], genre_summary: pd.DataFrame) -> None:
+def build_criteria_tables(dataset: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    return {
+        "genre": _exploded_success_summary(dataset, "genres", "genre"),
+        "category": _exploded_success_summary(dataset, "categories", "category"),
+        "price_band": _binned_success_summary(dataset, "price_final_usd", "price_band", [-0.01, 0, 10, 30, 60, np.inf], ["free", "under_10", "10_to_30", "30_to_60", "60_plus"]),
+        "language_band": _binned_success_summary(dataset, "supported_language_count", "language_band", [-1, 5, 15, 30, np.inf], ["1_5", "6_15", "16_30", "31_plus"]),
+        "platform_count": _platform_success_summary(dataset),
+        "multiplayer": _boolean_success_summary(dataset, "has_multiplayer", "multiplayer"),
+        "external_attention": _binned_success_summary(dataset, "external_attention_score", "external_attention", [-1, 0, 5, 15, np.inf], ["none", "low", "medium", "high"]),
+    }
+
+
+def _success_summary(data: pd.DataFrame, criteria_name: str, value_col: str) -> pd.DataFrame:
+    if data.empty:
+        return pd.DataFrame(columns=["criteria", "criteria_value", "game_count", "success_count", "success_rate"])
+    summary = data.groupby(value_col, as_index=False).agg(game_count=("success", "size"), success_count=("success", "sum"))
+    summary["success_rate"] = summary["success_count"] / summary["game_count"]
+    summary.insert(0, "criteria", criteria_name)
+    summary = summary.rename(columns={value_col: "criteria_value"})
+    return summary.sort_values(["success_rate", "success_count", "game_count"], ascending=False)
+
+
+def _exploded_success_summary(dataset: pd.DataFrame, column: str, criteria_name: str) -> pd.DataFrame:
+    rows = []
+    for row in dataset[[column, "success"]].itertuples(index=False):
+        values = [part.strip() for part in str(getattr(row, column)).split(",") if part.strip()]
+        for value in values:
+            rows.append({criteria_name: value, "success": int(row.success)})
+    data = pd.DataFrame(rows)
+    if data.empty:
+        return _success_summary(data, criteria_name, criteria_name)
+    return _success_summary(data, criteria_name, criteria_name).query("game_count >= 3")
+
+
+def _binned_success_summary(dataset: pd.DataFrame, column: str, criteria_name: str, bins: list[float], labels: list[str]) -> pd.DataFrame:
+    data = dataset[[column, "success"]].copy()
+    data[criteria_name] = pd.cut(data[column].fillna(0), bins=bins, labels=labels).astype(str)
+    return _success_summary(data, criteria_name, criteria_name)
+
+
+def _boolean_success_summary(dataset: pd.DataFrame, column: str, criteria_name: str) -> pd.DataFrame:
+    data = dataset[[column, "success"]].copy()
+    data[criteria_name] = data[column].map({True: "yes", False: "no"}).fillna("unknown")
+    return _success_summary(data, criteria_name, criteria_name)
+
+
+def _platform_success_summary(dataset: pd.DataFrame) -> pd.DataFrame:
+    data = dataset[["platform_windows", "platform_mac", "platform_linux", "success"]].copy()
+    data["platform_count"] = data[["platform_windows", "platform_mac", "platform_linux"]].sum(axis=1).astype(int).astype(str) + " platforms"
+    return _success_summary(data, "platform_count", "platform_count")
+
+
+def _criteria_markdown(criteria_tables: dict[str, pd.DataFrame]) -> str:
+    labels = {
+        "category": "상점 기능/카테고리",
+        "price_band": "가격대",
+        "language_band": "지원 언어 수",
+        "platform_count": "지원 플랫폼 수",
+        "multiplayer": "멀티플레이 여부",
+        "external_attention": "외부 웹 관심도",
+    }
+    lines: list[str] = []
+    for key, title in labels.items():
+        table = criteria_tables[key].head(5)
+        lines.append(f"### {title}")
+        if table.empty:
+            lines.append("- 분석 가능한 항목이 부족함")
+        else:
+            lines.extend([
+                f"- {row.criteria_value}: 성공 {int(row.success_count)}개 / 전체 {int(row.game_count)}개, 성공률 {row.success_rate:.1%}"
+                for row in table.itertuples()
+            ])
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+def write_conclusions_doc(output_path: Path, dataset: pd.DataFrame, best_row: dict[str, object], criteria_tables: dict[str, pd.DataFrame]) -> None:
     total = len(dataset)
     success_count = int(dataset["success"].sum())
     failure_count = int((dataset["success"] == 0).sum())
     success_rate = success_count / total if total else 0
+    genre_summary = criteria_tables["genre"]
     top_genres = [
-        f"- {row.genre}: 성공 {int(row.success_count)}개 / 전체 {int(row.game_count)}개, 성공률 {row.success_rate:.1%}"
+        f"- {row.criteria_value}: 성공 {int(row.success_count)}개 / 전체 {int(row.game_count)}개, 성공률 {row.success_rate:.1%}"
         for row in genre_summary.head(10).itertuples()
     ]
     if not top_genres:
@@ -230,6 +310,9 @@ def write_conclusions_doc(output_path: Path, dataset: pd.DataFrame, best_row: di
 
 ## 성공 게임이 많이 나타난 장르
 {chr(10).join(top_genres)}
+
+## 다양한 기준별 결과
+{_criteria_markdown(criteria_tables)}
 
 ## 모델 결과 해석
 - 선택 모델 기준 테스트 Accuracy는 {accuracy:.3f}, F1은 {f1:.3f}이다.

@@ -18,6 +18,10 @@ FEATURE_COLUMNS = [
     "platform_windows",
     "platform_mac",
     "platform_linux",
+    "youtube_mentions",
+    "webzine_mentions",
+    "blog_mentions",
+    "external_attention_score",
 ]
 
 
@@ -25,6 +29,10 @@ def make_xy(dataset: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     missing = [col for col in FEATURE_COLUMNS + ["success"] if col not in dataset.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
+    dataset = dataset.copy()
+    for col in FEATURE_COLUMNS:
+        if col not in dataset.columns:
+            dataset[col] = 0
     x = dataset[FEATURE_COLUMNS].copy()
     for col in x.columns:
         if x[col].dtype == bool:

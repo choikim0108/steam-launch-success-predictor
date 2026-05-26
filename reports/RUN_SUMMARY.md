@@ -1,33 +1,33 @@
 # Steam 출시 성공 예측 모델 실행 결과
 
-- 모델링 데이터 수: 111
-- 성공 라벨 수: 68
-- 비성공 라벨 수: 43
+- 모델링 데이터 수: 39
+- 성공 라벨 수: 14
+- 비성공 라벨 수: 25
 - 선택 모델: random_forest
-- 테스트 Accuracy: 0.559
-- 테스트 Precision: 0.607
-- 테스트 Recall: 0.810
-- 테스트 F1: 0.694
+- 테스트 Accuracy: 1.000
+- 테스트 Precision: 1.000
+- 테스트 Recall: 1.000
+- 테스트 F1: 1.000
 
 ## 주요 피처 중요도
-- price_final_usd: 0.1915
-- discount_percent: 0.1782
-- category_count: 0.1551
-- supported_language_count: 0.1270
-- metacritic_score: 0.0961
-- genre_count: 0.0772
-- has_singleplayer: 0.0268
-- supports_controller: 0.0260
+- youtube_mentions: 0.2601
+- external_attention_score: 0.2030
+- price_final_usd: 0.1217
+- category_count: 0.1106
+- supported_language_count: 0.0924
+- discount_percent: 0.0860
+- genre_count: 0.0381
+- has_multiplayer: 0.0219
 
 ## 장르별 결론 상위 항목
-- RPG: 성공 23개 / 전체 33개, 성공률 69.7%
-- Adventure: 성공 38개 / 전체 55개, 성공률 69.1%
-- Racing: 성공 2개 / 전체 3개, 성공률 66.7%
 - Sports: 성공 2개 / 전체 3개, 성공률 66.7%
-- Action: 성공 48개 / 전체 73개, 성공률 65.8%
-- Strategy: 성공 19개 / 전체 30개, 성공률 63.3%
-- Early Access: 성공 18개 / 전체 31개, 성공률 58.1%
-- Indie: 성공 27개 / 전체 48개, 성공률 56.2%
+- Early Access: 성공 6개 / 전체 13개, 성공률 46.2%
+- RPG: 성공 4개 / 전체 9개, 성공률 44.4%
+- Adventure: 성공 7개 / 전체 16개, 성공률 43.8%
+- Simulation: 성공 6개 / 전체 16개, 성공률 37.5%
+- Action: 성공 7개 / 전체 19개, 성공률 36.8%
+- Strategy: 성공 3개 / 전체 9개, 성공률 33.3%
+- Indie: 성공 8개 / 전체 26개, 성공률 30.8%
 
 ## 생성 차트
 - `reports/figures/label_distribution.png`

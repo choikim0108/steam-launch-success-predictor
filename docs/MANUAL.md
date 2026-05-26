@@ -35,8 +35,13 @@ PYTHONPATH=src python3 -m steam_success.pipeline --max-apps 250
 | max_apps | `180` |
 | search_pages | `8` |
 | request_sleep_seconds | `0.2` |
+| external_signal_sample_size | `12` |
+| external_request_sleep_seconds | `0.15` |
 | country | `US` |
 | language | `english` |
+| youtube_search_domain | `youtube.com` |
+| webzine_domains | `('ign.com', 'pcgamer.com', 'gamespot.com', 'rockpapershotgun.com')` |
+| blog_domains | `('medium.com', 'substack.com', 'wordpress.com', 'blogspot.com')` |
 | success_review_threshold | `500` |
 | success_positive_rate_threshold | `0.8` |
 | random_state | `42` |

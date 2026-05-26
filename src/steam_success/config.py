@@ -10,8 +10,15 @@ class ProjectSettings:
     max_apps: int = 180
     search_pages: int = 8
     request_sleep_seconds: float = 0.20
+    external_signal_sample_size: int = 12
+    external_request_sleep_seconds: float = 0.15
     country: str = "US"
     language: str = "english"
+
+    # 외부 웹 신호 검색 도메인
+    youtube_search_domain: str = "youtube.com"
+    webzine_domains: tuple[str, ...] = ("ign.com", "pcgamer.com", "gamespot.com", "rockpapershotgun.com")
+    blog_domains: tuple[str, ...] = ("medium.com", "substack.com", "wordpress.com", "blogspot.com")
 
     # 성공 라벨 기준
     success_review_threshold: int = 500
