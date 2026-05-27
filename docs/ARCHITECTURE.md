@@ -19,7 +19,8 @@ src/steam_success/
 ├── features/build_features.py# 모델 입력 피처 목록과 X/y 생성
 ├── models/train.py           # Logistic Regression, Random Forest 학습/평가
 ├── visualize/charts.py       # 라벨/리뷰/중요도 차트 생성
-├── reporting.py              # PDF 요약, 아키텍처/메모 문서 생성
+├── reporting.py              # PDF 요약, 아키텍처/메모/결론 문서 생성
+├── web_report.py             # HTML 리포트 생성
 └── pipeline.py               # 전체 파이프라인 실행 진입점
 ```
 
@@ -30,7 +31,8 @@ src/steam_success/
 4. `preprocess`: `total_reviews >= 500` 및 `positive_rate >= 0.80`이면 성공으로 라벨링한다.
 5. `features`: 출시 전/초기에도 알 수 있는 가격, 장르 수, 카테고리 수, 언어 수, 플랫폼, 멀티플레이 여부 등을 입력 변수로 만든다.
 6. `models`: Logistic Regression과 Random Forest를 비교하고 F1 중심으로 최적 모델을 저장한다.
-7. `visualize/reporting`: 결과 CSV, JSON, PNG, 문서 산출물을 생성한다.
+7. `visualize`: 라벨 분포, 리뷰-긍정률 산점도, 변수 중요도, 작업 흐름 도식 PNG를 생성한다.
+8. `reporting/web_report`: Markdown 결론과 HTML 리포트에 "그래서 성공할 것으로 예측되는 게임" 답변을 포함한다.
 
 ## 산출물 위치
 - 원천 데이터: `data/raw/`

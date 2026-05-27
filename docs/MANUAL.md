@@ -37,6 +37,8 @@ PYTHONPATH=src python3 -m steam_success.pipeline --max-apps 250
 | request_sleep_seconds | `0.2` |
 | external_signal_sample_size | `12` |
 | external_request_sleep_seconds | `0.15` |
+| review_text_sample_size | `24` |
+| review_texts_per_game | `20` |
 | country | `US` |
 | language | `english` |
 | youtube_search_domain | `youtube.com` |
@@ -60,5 +62,7 @@ PYTHONPATH=src python3 -m steam_success.pipeline --max-apps 250
 - 장르별 결론: `reports/CONCLUSIONS.md`
 - 모델 성능표: `reports/model_metrics.csv`
 - 게임별 예측 확률: `reports/predictions.csv`
+- 인터랙티브 HTML 리포트: `reports/interactive_report.html`
+- 시각화 이미지: `reports/figures/`
 - 학습 데이터: `data/processed/modeling_dataset.csv`
 - 저장 모델: `models/steam_success_model.joblib`
