@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from steam_success.reporting import top_predicted_game
+
 
 SECTION_LABELS = {
     "genre": "장르",
@@ -29,15 +31,20 @@ def write_interactive_report(reports_dir: Path, dataset: pd.DataFrame) -> None:
     metrics_df = pd.read_csv(reports_dir / "model_metrics.csv").sort_values(["f1", "recall", "accuracy"], ascending=False)
     metrics = metrics_df.head(1).to_dict(orient="records")
     conclusions = _build_conclusions(dataset, metrics_df)
+    review_topics = _load_review_topics(reports_dir)
+    predicted_game = top_predicted_game(reports_dir)
     payload = {
         "labels": SECTION_LABELS,
         "sections": sections,
         "summary": {
             "rows": int(len(dataset)),
-            "success": int(dataset["success"].sum()),
-            "failure": int((dataset["success"] == 0).sum()),
+            "success": len(dataset[dataset["success"] == 1]),
+            "failure": len(dataset[dataset["success"] == 0]),
             "metrics": metrics[0] if metrics else {},
             "conclusions": conclusions,
+            "predicted_game": predicted_game,
+            "review_topics": review_topics,
+            "figures": _existing_figures(reports_dir),
         },
     }
     html = HTML_TEMPLATE.replace("__PAYLOAD__", json.dumps(payload, ensure_ascii=False))
@@ -45,8 +52,7 @@ def write_interactive_report(reports_dir: Path, dataset: pd.DataFrame) -> None:
 
 
 def _build_conclusions(dataset: pd.DataFrame, metrics_df: pd.DataFrame) -> dict[str, str]:
-    success_count = int(dataset["success"].sum())
-    failure_count = int((dataset["success"] == 0).sum())
+    success_count = len(dataset[dataset["success"] == 1])
     success_rate = success_count / len(dataset) if len(dataset) else 0
     best = metrics_df.iloc[0].to_dict() if not metrics_df.empty else {}
     best_model = str(best.get("model", ""))
@@ -68,6 +74,22 @@ def _build_conclusions(dataset: pd.DataFrame, metrics_df: pd.DataFrame) -> dict[
         f"가격대 경향은 {price}, 외부 웹 관심도 경향은 {external}로 요약됩니다."
     )
     return {"brief": brief, "detail": detail}
+
+
+def _load_review_topics(reports_dir: Path) -> list[dict[str, object]]:
+    path = reports_dir / "review_topic_summary.csv"
+    if not path.exists():
+        return []
+    return pd.read_csv(path).to_dict(orient="records")
+
+
+def _existing_figures(reports_dir: Path) -> list[dict[str, str]]:
+    names = ["label_distribution.png", "reviews_vs_positive_rate.png", "feature_importance.png", "analysis_workflow.png", "review_topic_counts.png"]
+    result: list[dict[str, str]] = []
+    for name in names:
+        if (reports_dir / "figures" / name).exists():
+            result.append({"src": f"figures/{name}", "name": name})
+    return result
 
 
 def _top_criteria(filename: str) -> str:
@@ -93,6 +115,10 @@ body { font-family: Arial, sans-serif; margin: 28px; color: #111827; }
 .bar-row { display: grid; grid-template-columns: 180px 1fr 90px; gap: 10px; align-items: center; margin: 8px 0; }
 .bar-bg { background: #e5e7eb; border-radius: 999px; overflow: hidden; height: 18px; }
 .bar { background: #2563eb; height: 18px; }
+.figure-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.figure-grid img { max-width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; }
+.topic-table { width: 100%; border-collapse: collapse; }
+.topic-table th, .topic-table td { border-bottom: 1px solid #e5e7eb; padding: 8px; text-align: left; vertical-align: top; }
 .small { color: #6b7280; font-size: 0.92em; }
 </style>
 </head>
@@ -101,6 +127,9 @@ body { font-family: Arial, sans-serif; margin: 28px; color: #111827; }
 <p>체크박스로 분석 기준을 선택하면 장르, 가격대, 플랫폼, 외부 관심도 등 기준별 성공률 그래프가 표시됩니다.</p>
 <div id=\"summary\"></div>
 <div class=\"card\"><h2>결론</h2><h3>간략 버전</h3><p id=\"briefConclusion\"></p><h3>상세 버전</h3><p id=\"detailConclusion\"></p></div>
+<div class=\"card\" id=\"predictedGame\"></div>
+<div class=\"card\"><h2>시각화</h2><div class=\"figure-grid\" id=\"figures\"></div></div>
+<div class=\"card\"><h2>성공확률 상위 장르 리뷰 토픽</h2><div id=\"reviewTopics\"></div></div>
 <div class=\"controls\" id=\"controls\"></div>
 <div id=\"sections\"></div>
 <script>
@@ -108,6 +137,11 @@ const data = __PAYLOAD__;
 const summary = data.summary;
 document.getElementById('briefConclusion').textContent = summary.conclusions.brief;
 document.getElementById('detailConclusion').textContent = summary.conclusions.detail;
+const predicted = summary.predicted_game || {};
+document.getElementById('predictedGame').innerHTML = predicted.name ? `<h2>그래서 성공할 것으로 예측되는 게임은 뭔가?</h2><p><a href=\"${predicted.steam_url}\" target=\"_blank\" rel=\"noreferrer\">${predicted.name}</a>입니다. 예측 성공 확률은 ${(Number(predicted.predicted_success_probability || 0) * 100).toFixed(1)}%이고, 현재 리뷰 ${Number(predicted.total_reviews || 0).toLocaleString()}개 / 긍정률 ${(Number(predicted.positive_rate || 0) * 100).toFixed(1)}%입니다.</p>` : '<h2>그래서 성공할 것으로 예측되는 게임은 뭔가?</h2><p>예측 결과 데이터가 없습니다.</p>';
+document.getElementById('figures').innerHTML = (summary.figures || []).map(figure => `<figure><img src=\"${figure.src}\" alt=\"${figure.name}\"><figcaption class=\"small\">${figure.name}</figcaption></figure>`).join('');
+const topicRows = summary.review_topics || [];
+document.getElementById('reviewTopics').innerHTML = topicRows.length ? `<table class=\"topic-table\"><thead><tr><th>장르</th><th>성공/실패</th><th>긍정/부정</th><th>주요 토픽</th><th>리뷰 수</th></tr></thead><tbody>${topicRows.map(row => `<tr><td>${row.genre}</td><td>${row.game_success}</td><td>${row.review_sentiment}</td><td>${row.top_terms}</td><td>${row.review_count}</td></tr>`).join('')}</tbody></table>` : '<p>리뷰 토픽 데이터가 없습니다.</p>';
 document.getElementById('summary').innerHTML = `<div class=\"card\"><b>데이터</b>: ${summary.rows}개 게임, 성공 ${summary.success}개, 비성공 ${summary.failure}개<br><b>모델</b>: ${summary.metrics.model || ''}, F1=${Number(summary.metrics.f1 || 0).toFixed(3)}, Accuracy=${Number(summary.metrics.accuracy || 0).toFixed(3)}<p class=\"small\">F1은 성공/실패 예측의 precision과 recall을 함께 보는 지표입니다.</p></div>`;
 const controls = document.getElementById('controls');
 Object.entries(data.labels).forEach(([key, label]) => {
