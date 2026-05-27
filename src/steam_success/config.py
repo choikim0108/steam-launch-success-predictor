@@ -12,6 +12,8 @@ class ProjectSettings:
     request_sleep_seconds: float = 0.20
     external_signal_sample_size: int = 12
     external_request_sleep_seconds: float = 0.15
+    review_text_sample_size: int = 24
+    review_texts_per_game: int = 20
     country: str = "US"
     language: str = "english"
 

@@ -5,6 +5,7 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from collections.abc import Iterable
+from typing import TypedDict
 
 import pandas as pd
 import requests
@@ -23,6 +24,13 @@ class CrawlConfig:
     sleep_seconds: float
     country: str
     language: str
+
+
+class CollectionResult(TypedDict):
+    search: pd.DataFrame
+    details: pd.DataFrame
+    reviews: pd.DataFrame
+    config: CrawlConfig
 
 
 def _session() -> requests.Session:
@@ -154,7 +162,44 @@ def fetch_review_summaries(appids: Iterable[int], raw_dir: Path, config: CrawlCo
     return pd.DataFrame(rows)
 
 
-def collect_all(paths: ProjectPaths, settings: ProjectSettings = SETTINGS, max_apps: int | None = None) -> dict[str, pd.DataFrame]:
+def fetch_review_texts(appids: Iterable[int], raw_dir: Path, config: CrawlConfig, per_game: int) -> pd.DataFrame:
+    session = _session()
+    rows: list[dict[str, object]] = []
+    text_dir = raw_dir / "review_texts"
+    text_dir.mkdir(parents=True, exist_ok=True)
+    for appid in appids:
+        url = f"https://store.steampowered.com/appreviews/{appid}"
+        params = {
+            "json": 1,
+            "filter": "recent",
+            "language": "all",
+            "purchase_type": "all",
+            "num_per_page": per_game,
+        }
+        try:
+            response = session.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:
+            rows.append({"appid": int(appid), "review_collection_success": False, "review_error": str(exc)})
+            continue
+        (text_dir / f"review_texts_{int(appid)}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        for item in payload.get("reviews") or []:
+            author = item.get("author") or {}
+            rows.append({
+                "appid": int(appid),
+                "review_collection_success": True,
+                "review_id": str(item.get("recommendationid", "")),
+                "voted_up": bool(item.get("voted_up", False)),
+                "review_text": str(item.get("review", "")).replace("\r", " ").replace("\n", " ").strip(),
+                "playtime_hours": float(author.get("playtime_forever") or 0) / 60,
+                "timestamp_created": int(item.get("timestamp_created") or 0),
+            })
+        time.sleep(config.sleep_seconds)
+    return pd.DataFrame(rows)
+
+
+def collect_all(paths: ProjectPaths, settings: ProjectSettings = SETTINGS, max_apps: int | None = None) -> CollectionResult:
     config = CrawlConfig(
         max_apps=max_apps if max_apps is not None else settings.max_apps,
         pages=settings.search_pages,
@@ -172,4 +217,4 @@ def collect_all(paths: ProjectPaths, settings: ProjectSettings = SETTINGS, max_a
     search.to_csv(paths.data_raw / "steam_search_crawl.csv", index=False)
     details.to_csv(paths.data_raw / "steam_appdetails.csv", index=False)
     reviews.to_csv(paths.data_raw / "steam_review_summaries.csv", index=False)
-    return {"search": search, "details": details, "reviews": reviews}
+    return {"search": search, "details": details, "reviews": reviews, "config": config}
