@@ -53,7 +53,12 @@ def main() -> None:
     parser.add_argument("--max-apps", type=int, default=None)
     args = parser.parse_args()
     root = args.root.resolve()
-    input_csv = args.input_csv if args.input_csv is not None else root / "data" / "raw" / "steamspy_appids.csv"
+    if args.input_csv is not None:
+        input_csv = args.input_csv
+    else:
+        official_csv = root / "data" / "raw" / "steam_official_appids.csv"
+        steamspy_csv = root / "data" / "raw" / "steamspy_appids.csv"
+        input_csv = official_csv if official_csv.exists() else steamspy_csv
     run(root, input_csv, args.max_apps)
 
 

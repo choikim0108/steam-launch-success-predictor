@@ -19,6 +19,33 @@ python -m compileall src
 
 현재 환경에서는 Python 3.13 기준으로 수집/모델링 의존성이 설치되어 있다.
 
+## Steam Web API key 보관
+
+Steam Web API key는 개인 키이므로 Git에 커밋하지 않는다. 로컬에서만 `.env` 파일을 만들고, 팀 공유용으로는 `.env.example`만 사용한다.
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+`.env` 안에는 다음처럼 넣는다.
+
+```text
+STEAM_WEB_API_KEY=발급받은_키
+```
+
+PowerShell에서 실행할 때는 다음처럼 현재 터미널 세션에만 환경변수로 올린다.
+
+```powershell
+$env:STEAM_WEB_API_KEY = (Get-Content .env | Where-Object { $_ -like "STEAM_WEB_API_KEY=*" }).Split("=", 2)[1]
+```
+
+확인할 때는 키 전체를 출력하지 말고 존재 여부만 확인한다.
+
+```powershell
+if ($env:STEAM_WEB_API_KEY) { "STEAM_WEB_API_KEY loaded" }
+```
+
 ## 1차 수집: appid, 상점 정보, 리뷰 요약
 
 기본 수집 CLI는 Steam 검색 페이지에서 appid를 모으고, appdetails와 리뷰 요약만 수집한다. 레거시 모델 학습과 리포트 생성을 피하기 위해 `steam_success.pipeline`이 아니라 `steam_success.collect.base`를 사용한다.
@@ -43,7 +70,45 @@ data/raw/steam_appdetails.csv
 data/raw/steam_review_summaries.csv
 ```
 
-## 1.5차 수집: SteamSpy appid 후보 기반 수집
+## 1.5차 수집: 공식 Steam appid 후보 기반 수집
+
+Steam Web API key가 있으면 공식 `IStoreService/GetAppList`를 1순위 appid 후보 source로 사용한다. 이 엔드포인트는 출시일을 직접 주지는 않지만, 전체 appid 후보를 빠르게 가져올 수 있다.
+
+```bash
+$env:PYTHONPATH="src"
+python -m steam_success.collect.official_appids --max-apps 200000 --batch-size 50000
+python -m steam_success.preprocess.appid_sample --random-size 5000 --recent-size 5000
+python -m steam_success.collect.appdetails_for_appids --input-csv data/interim/appid_candidates_for_details.csv
+python -m steam_success.preprocess.candidate_filter --year 2025
+```
+
+생성 파일:
+
+```text
+data/raw/steam_official_appids.csv
+data/interim/appid_candidates_for_details.csv
+data/raw/steam_appdetails.csv
+data/raw/steam_review_summaries.csv
+data/interim/game_candidates_2025.csv
+```
+
+측정 기준:
+
+```text
+공식 appid 5만 개 수집: 약 4초
+공식 appid 16.8만 개 수집: 약 7초
+appdetails는 여전히 후보 100개당 약 1~1.5분
+```
+
+주의:
+
+```text
+공식 GetAppList에는 release date가 없으므로, 2025년 게임 여부는 appdetails 이후에만 확정할 수 있다.
+전체 16만 개를 모두 appdetails로 호출하면 시간이 너무 오래 걸린다.
+따라서 random 표본과 high appid recent proxy 표본을 섞어 appdetails 후보를 만든다.
+```
+
+## 1.6차 fallback: SteamSpy appid 후보 기반 수집
 
 Steam 공식 전체 appid API가 접근되지 않거나 API key가 없을 때는 SteamSpy `request=all&page=N`을 appid 후보 목록으로 사용한다. 이 방식은 전체 Steam 모집단의 완전한 대체는 아니지만, 검색 페이지보다 많은 appid 후보를 빠르게 확보할 수 있다.
 

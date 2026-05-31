@@ -82,9 +82,45 @@ sample_appids=100
 판단:
 
 ```text
-공식 GetAppList는 현재 환경에서 사용 불가.
-API key가 있는 IStoreService/GetAppList를 확인하거나, SteamSpy all pagination을 후보 appid source로 사용한다.
+구버전 공식 ISteamApps/GetAppList는 현재 환경에서 사용 불가.
+API key가 있는 IStoreService/GetAppList를 확인하거나, SteamSpy all pagination을 fallback 후보 appid source로 사용한다.
 SteamSpy는 appid 후보 확보에는 빠르지만 인기순/owners 중심 편향 가능성이 있으므로, 최종 보고서에서는 후보 source로 명시한다.
+```
+
+## 2차 보완: 공식 IStoreService/GetAppList 확인
+
+Steam Web API key를 `.env`에 넣은 뒤 공식 `IStoreService/GetAppList`를 다시 확인했다.
+
+테스트 결과:
+
+```text
+https://api.steampowered.com/IStoreService/GetAppList/v1/
+status=200
+max_results=10 정상 응답
+```
+
+비교:
+
+```text
+https://partner.steam-api.com/IStoreService/GetAppList/v1/
+status=403
+```
+
+공식 appid 대량 수집 측정:
+
+```text
+공식 appid 50000개: 약 3.8초
+공식 appid 168426개: 약 7.2초
+max_appid=4785480
+```
+
+판단:
+
+```text
+API key가 있으면 공식 appid 후보 수집은 IStoreService/GetAppList를 1순위로 사용한다.
+다만 이 응답에는 release date가 없으므로 2025년 출시 여부는 appdetails를 호출한 뒤에만 확정할 수 있다.
+전체 16만 개를 모두 appdetails로 호출하면 너무 오래 걸리므로, 공식 전체 appid 목록에서 random 표본과 high appid recent proxy 표본을 섞어 상세 수집 후보를 만든다.
+SteamSpy는 공식 API 실패 시 fallback으로 낮춘다.
 ```
 
 ## 3차 시도: 2025년 후보 리뷰 타임라인 수집
@@ -162,10 +198,12 @@ appdetails + review summary 100개: 85.37초
 측정값 기준:
 
 ```text
+공식 appid 168426개 -> appid 후보 목록 확보: 약 7초
 SteamSpy 후보 100개 -> appdetails 필터링: 약 1~1.5분
 SteamSpy 후보 1000개 -> appdetails 필터링: 약 10~15분
 SteamSpy 후보 5000개 -> appdetails 필터링: 약 50~75분
 SteamSpy 후보 10000개 -> appdetails 필터링: 약 100~150분
+공식 표본 후보 10000개 -> appdetails 필터링: 약 100~150분
 ```
 
 리뷰 타임라인:
@@ -182,7 +220,8 @@ SteamSpy 후보 10000개 -> appdetails 필터링: 약 100~150분
 MVP 실행:
 
 ```text
-SteamSpy 후보 5000개
+공식 전체 appid 목록 수집
+random 2500개 + high appid recent proxy 2500개
 예상 2025년 후보 약 200~300개
 게임당 리뷰 최대 500개
 총 수집 예상 시간 약 2~3시간
@@ -191,7 +230,8 @@ SteamSpy 후보 5000개
 확장 실행:
 
 ```text
-SteamSpy 후보 10000개
+공식 전체 appid 목록 수집
+random 5000개 + high appid recent proxy 5000개
 예상 2025년 후보 약 400~600개
 게임당 리뷰 최대 500~1000개
 총 수집 예상 시간 약 4~6시간
@@ -200,7 +240,7 @@ SteamSpy 후보 10000개
 팀 일정상 권장:
 
 ```text
-먼저 5000개 후보로 MVP 데이터셋을 확정한다.
+먼저 공식 appid 기반 5000개 상세 후보로 MVP 데이터셋을 확정한다.
 EDA와 모델링이 돌아가는 것을 확인한 뒤, 시간이 남으면 10000개 후보로 확장한다.
 처음부터 10000개 이상을 목표로 잡으면 전처리와 검증 시간이 부족해질 수 있다.
 ```
@@ -212,8 +252,12 @@ EDA와 모델링이 돌아가는 것을 확인한 뒤, 시간이 남으면 10000
 검색 기반 수집 50~300개로 파이프라인 smoke test
 
 2차:
-SteamSpy pages 5~10개에서 appid 5000~10000개 확보
+공식 IStoreService/GetAppList로 전체 appid 후보 확보
+random 표본 + high appid recent proxy 표본을 섞어 appdetails 후보 생성
 appdetails로 2025년 출시 game 필터링
+
+2차 fallback:
+공식 API key나 호출 문제가 생기면 SteamSpy pages 5~10개에서 appid 5000~10000개 확보
 
 3차:
 필터링된 2025년 후보에 Reviews API timeline 수집
@@ -224,7 +268,8 @@ max_reviews_per_game=500부터 시작
 
 ```text
 공식 ISteamApps/GetAppList는 현재 환경에서 404로 실패.
+공식 IStoreService/GetAppList는 API key를 사용하면 public host에서 정상 동작.
+공식 GetAppList에는 release date가 없으므로 appdetails 이전에는 2025년 게임을 확정할 수 없음.
 검색 기반 최신순 수집은 2025년 학습 데이터 확보에는 비효율적.
-SteamSpy all은 빠르지만 전체 Steam 모집단의 무편향 목록이라고 단정하면 안 됨.
-최종적으로 API key가 확보되면 IStoreService/GetAppList를 다시 검토한다.
+SteamSpy all은 빠르지만 전체 Steam 모집단의 무편향 목록이라고 단정하면 안 되므로 fallback으로만 사용.
 ```
