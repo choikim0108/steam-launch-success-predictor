@@ -7,6 +7,7 @@
 - `docs/DEVELOPER_AND_USER_EXPERIENCE.md`: 개발자 경험과 사용자 경험 설계 정리
 - `docs/TEAM_PROJECT_PLAN.md`: 팀 일정, 역할, 단계별 실행 계획
 - `docs/DATA_COLLECTION_RUNBOOK.md`: 데이터 수집 브랜치 실행 준비와 리뷰 타임라인 수집 방법
+- `docs/PROJECT_STATE_AUDIT.md`: 현재 프로젝트 상태 점검과 레거시 산출물 정리 기준
 
 ## 주요 경로
 - `src/steam_success/`: 크롤링, 전처리, 피처, 모델링, 시각화, 리포트 생성 코드
@@ -18,6 +19,7 @@
 - `reports/experience_scenario.html`: 사용자 경험 중심 시각화 문서
 - `models/`: 학습된 모델 파일
 - `docs/`: 프로젝트 설명, 아키텍처, 실행 매뉴얼, 가정/질문, PDF 요약
+- `legacy/current_snapshot/`: 현재 누적 리뷰 기준으로 생성된 초기 모델/리포트 보존본
 
 ## 작업공간 루트 참고 자료
 - `dmP/1조 게임 (1).pdf`: 팀 프로젝트 참고 PDF

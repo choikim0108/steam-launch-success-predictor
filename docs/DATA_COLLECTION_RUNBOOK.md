@@ -21,18 +21,18 @@ python -m compileall src
 
 ## 1차 수집: appid, 상점 정보, 리뷰 요약
 
-기존 파이프라인은 Steam 검색 페이지에서 appid를 모으고, appdetails와 리뷰 요약을 수집한다.
+기본 수집 CLI는 Steam 검색 페이지에서 appid를 모으고, appdetails와 리뷰 요약만 수집한다. 레거시 모델 학습과 리포트 생성을 피하기 위해 `steam_success.pipeline`이 아니라 `steam_success.collect.base`를 사용한다.
 
 ```bash
 $env:PYTHONPATH="src"
-python run_pipeline.py
+python -m steam_success.collect.base
 ```
 
 샘플 수를 제한해 먼저 확인하려면 다음처럼 실행한다.
 
 ```bash
 $env:PYTHONPATH="src"
-python -m steam_success.pipeline --max-apps 50
+python -m steam_success.collect.base --max-apps 50
 ```
 
 생성 파일:
@@ -106,4 +106,3 @@ success_90d 라벨 생성
 ```
 
 이 작업은 `preprocess` 모듈에 추가하는 것이 적절하다.
-

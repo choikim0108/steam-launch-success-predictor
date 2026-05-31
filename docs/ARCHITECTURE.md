@@ -1,46 +1,136 @@
-# 프로그램 아키텍처 문서
+# 90일 성공 예측 파이프라인 아키텍처
 
 ## 목적
-Steam 상점에서 새로 출시된 게임 후보를 직접 크롤링하고, Steam Store API와 Steam Reviews API로 보강한 뒤, 출시 성공 가능성을 분류 모델로 예측한다.
 
-## 사용 언어와 라이브러리
-- 언어: Python 3.12
-- 데이터 수집: requests, beautifulsoup4, lxml
-- 데이터 처리: pandas, numpy
-- 모델링: scikit-learn, joblib
-- 시각화: matplotlib
-- PDF 참고 추출: pypdf
-
-## 모듈 구조
-```text
-src/steam_success/
-├── collect/steam.py          # Steam 검색 HTML 크롤링, appdetails/reviews API 수집
-├── preprocess/dataset.py     # 수집 데이터 병합, 결측 처리, 성공 라벨 생성
-├── features/build_features.py# 모델 입력 피처 목록과 X/y 생성
-├── models/train.py           # Logistic Regression, Random Forest 학습/평가
-├── visualize/charts.py       # 라벨/리뷰/중요도 차트 생성
-├── reporting.py              # PDF 요약, 아키텍처/메모/결론 문서 생성
-├── web_report.py             # HTML 리포트 생성
-└── pipeline.py               # 전체 파이프라인 실행 진입점
-```
+Steam 신작 게임의 상점 정보와 출시 초기 리뷰 데이터를 수집해 출시 후 90일 성공 가능성을 예측한다. 현재 누적 리뷰 기준으로 만든 초기 작동 모델은 `legacy/current_snapshot/`에 보존했고, 신규 작업은 `success_90d` 기준으로 진행한다.
 
 ## 데이터 흐름
-1. `collect`: Steam 검색 결과 페이지를 직접 크롤링해 appid 후보를 만든다.
-2. `collect`: appid별 상점 상세정보와 리뷰 요약을 API로 수집한다.
-3. `preprocess`: HTML 크롤링 데이터, appdetails, review summary를 병합한다.
-4. `preprocess`: `total_reviews >= 500` 및 `positive_rate >= 0.80`이면 성공으로 라벨링한다.
-5. `features`: 출시 전/초기에도 알 수 있는 가격, 장르 수, 카테고리 수, 언어 수, 플랫폼, 멀티플레이 여부 등을 입력 변수로 만든다.
-6. `models`: Logistic Regression과 Random Forest를 비교하고 F1 중심으로 최적 모델을 저장한다.
-7. `visualize`: 라벨 분포, 리뷰-긍정률 산점도, 변수 중요도, 작업 흐름 도식 PNG를 생성한다.
-8. `reporting/web_report`: Markdown 결론과 HTML 리포트에 "그래서 성공할 것으로 예측되는 게임" 답변을 포함한다.
 
-## 산출물 위치
-- 원천 데이터: `data/raw/`
-- 병합/정제 데이터: `data/interim/`
-- 모델 학습 데이터: `data/processed/`
-- 학습 모델: `models/steam_success_model.joblib`
-- 평가/예측/차트: `reports/`
-- 아키텍처/메모/PDF 요약: `docs/`
+```text
+Steam 검색/상점 크롤링
+        |
+        v
+appid 후보 수집
+        |
+        v
+Steam appdetails API
+        |
+        v
+상점 feature 생성
+        |
+        v
+Steam Reviews API 페이지네이션
+        |
+        v
+리뷰별 timestamp_created / voted_up 수집
+        |
+        v
+7일/30일/90일 리뷰 지표 생성
+        |
+        v
+success_90d 라벨 생성
+        |
+        v
+분류 모델 학습 및 평가
+        |
+        v
+EDA / 유사 게임 / 리뷰 키워드 / 리포트
+```
 
-## 유지보수 기준
-수집, 전처리, 피처, 모델, 시각화, 문서 생성을 서로 다른 모듈로 분리했다. Steam HTML 구조가 바뀌면 `collect/steam.py`, 성공 기준이나 모델 변수값이 바뀌면 `config.py`의 `ProjectSettings`를 우선 수정하면 된다.
+## 현재 모듈 상태
+
+```text
+src/steam_success/collect/steam.py
+- Steam 검색 페이지 appid 수집
+- appdetails 수집
+- 리뷰 요약 수집
+- 리뷰 텍스트 일부 수집
+- 리뷰 timeline 페이지네이션 수집 준비
+
+src/steam_success/collect/review_timeline.py
+- appid 목록 또는 단일 appid 기준 리뷰 timestamp 수집 CLI
+
+src/steam_success/preprocess/dataset.py
+- 아직 현재 누적 total_reviews/positive_rate 기준 success 생성
+- 다음 작업에서 success_90d 기준으로 교체 필요
+
+src/steam_success/features/build_features.py
+- 아직 success 컬럼을 y로 사용
+- 다음 작업에서 success_90d와 7일 feature 기준으로 교체 필요
+
+src/steam_success/models/train.py
+- Logistic Regression, Random Forest 학습/평가
+- y 컬럼 교체 후 재사용 가능
+```
+
+## 신규 전처리 목표
+
+리뷰 타임라인과 appdetails를 병합해 다음 컬럼을 만든다.
+
+```text
+release_date
+reviews_7d
+positive_rate_7d
+reviews_30d
+positive_rate_30d
+reviews_90d
+positive_rate_90d
+review_velocity_7d
+success_90d
+```
+
+## 모델 입력과 제외 기준
+
+모델 입력으로 사용할 수 있는 값:
+
+```text
+가격
+장르/태그/카테고리
+지원 언어 수
+플랫폼 수
+싱글/멀티 여부
+컨트롤러 지원 여부
+도전과제 지원 여부
+출시 7일 리뷰 수
+출시 7일 긍정률
+출시 7일 리뷰 증가 속도
+```
+
+모델 입력에서 제외할 값:
+
+```text
+출시 90일 리뷰 수
+출시 90일 긍정률
+현재 전체 리뷰 수
+현재 긍정률
+현재 판매량 추정치
+현재 동접자
+현재 Metacritic 점수
+웹진 현재 검색 점수
+```
+
+## 보조 분석 위치
+
+SteamSpy, 웹진 관심도, Metacritic/OpenCritic, 현재 동접자는 예측 모델의 핵심 입력이 아니라 현재 성과 비교와 사용자 설명용 보조 지표로 둔다.
+
+```text
+sales_proxy_score
+critic_score
+attention_score
+activity_score
+```
+
+## 산출물 원칙
+
+신규 산출물은 기존 현재 누적 기준 결과와 파일명이 섞이지 않도록 한다.
+
+```text
+data/raw/steam_review_timeline.csv
+data/interim/review_windows.csv
+data/processed/modeling_dataset_90d.csv
+reports/model_metrics_90d.json
+reports/predictions_90d.csv
+reports/RUN_SUMMARY_90D.md
+models/steam_success_90d_model.joblib
+```
+
