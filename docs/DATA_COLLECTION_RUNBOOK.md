@@ -168,8 +168,9 @@ python -m steam_success.preprocess.candidate_filter --start-year 2025 --end-year
 공식 appid 5만 개 수집: 약 4초
 공식 appid 16.8만 개 수집: 약 7초
 appdetails는 후보 100개당 약 1~1.5분
+실제 상점 최신순 첫 100개 appdetails/review summary 수집: 약 98.9초
 SteamSpy 후보 100개 -> appdetails 필터링: 약 1~1.5분
-실제 2025~2026 상점 검색 후보 28,899개 기준 전체 appdetails/review summary는 약 7~11시간 예상
+실제 2025~2026 상점 검색 후보 28,899개 기준 전체 appdetails/review summary는 약 8시간 예상
 ```
 
 ## 수집 규모 기준

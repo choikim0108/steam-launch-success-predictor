@@ -84,6 +84,36 @@ stop_reason=before_2025_for_2_pages
 이 단계는 장시간 실행될 수 있으므로 raw JSON 재사용, CSV checkpoint, 재실행 resume이 필요하다.
 ```
 
+## 2차 실행: appdetails/review summary 100개 샘플
+
+명령:
+
+```powershell
+$env:PYTHONPATH="src"
+python -m steam_success.collect.appdetails_for_appids --input-csv data/interim/search_release_window_appids.csv --max-apps 100 --flush-every 25
+python -m steam_success.preprocess.candidate_filter --start-year 2025 --end-year 2026
+```
+
+결과:
+
+```text
+appdetails/review summary 100개: 약 98.9초
+details_rows=100
+review_summary_rows=100
+successful_details=100
+candidate_rows=100
+release_years=2026:100
+label_eligible_90d=0
+```
+
+판단:
+
+```text
+최신순 첫 100개는 모두 2026년 게임이므로 label_eligible_90d가 0인 것은 정상이다.
+현재 속도 기준 28,899개 전체 appdetails/review summary 수집은 약 8시간 예상이다.
+중단 후 재실행해도 기존 raw JSON과 CSV를 재사용하므로 이어서 진행 가능하다.
+```
+
 ## 2차: 구버전 공식 app list 실패
 
 시도한 URL:
@@ -214,7 +244,8 @@ sleep 1~2초 기준 수십 분 단위 예상
 
 appdetails:
 후보 100개당 약 1~1.5분
-28,899개 전체 기준 약 7~11시간 예상
+실측 100개 기준 98.9초
+28,899개 전체 기준 약 8시간 예상
 
 review timeline:
 게임 250개 x 500리뷰: 대략 30~60분 예상
