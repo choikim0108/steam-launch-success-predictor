@@ -199,6 +199,78 @@ def fetch_review_texts(appids: Iterable[int], raw_dir: Path, config: CrawlConfig
     return pd.DataFrame(rows)
 
 
+def fetch_review_timeline(
+    appids: Iterable[int],
+    raw_dir: Path,
+    config: CrawlConfig,
+    page_size: int,
+    max_reviews_per_game: int,
+) -> pd.DataFrame:
+    session = _session()
+    rows: list[dict[str, object]] = []
+    timeline_dir = raw_dir / "review_timeline"
+    timeline_dir.mkdir(parents=True, exist_ok=True)
+    per_page = max(1, min(page_size, 100))
+    for appid in appids:
+        cursor = "*"
+        seen_cursors: set[str] = set()
+        collected = 0
+        page_index = 1
+        while collected < max_reviews_per_game and cursor not in seen_cursors:
+            seen_cursors.add(cursor)
+            url = f"https://store.steampowered.com/appreviews/{int(appid)}"
+            params = {
+                "json": 1,
+                "filter": "recent",
+                "language": "all",
+                "purchase_type": "all",
+                "num_per_page": min(per_page, max_reviews_per_game - collected),
+                "cursor": cursor,
+            }
+            try:
+                response = session.get(url, params=params, timeout=30)
+                response.raise_for_status()
+                payload = response.json()
+            except Exception as exc:
+                rows.append({
+                    "appid": int(appid),
+                    "timeline_collection_success": False,
+                    "timeline_error": str(exc),
+                })
+                break
+            (timeline_dir / f"review_timeline_{int(appid)}_page_{page_index}.json").write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            reviews = payload.get("reviews") or []
+            if not reviews:
+                break
+            for item in reviews:
+                author = item.get("author") or {}
+                rows.append({
+                    "appid": int(appid),
+                    "timeline_collection_success": True,
+                    "review_id": str(item.get("recommendationid", "")),
+                    "voted_up": bool(item.get("voted_up", False)),
+                    "review_text": str(item.get("review", "")).replace("\r", " ").replace("\n", " ").strip(),
+                    "playtime_hours": float(author.get("playtime_forever") or 0) / 60,
+                    "timestamp_created": int(item.get("timestamp_created") or 0),
+                    "timestamp_updated": int(item.get("timestamp_updated") or 0),
+                    "weighted_vote_score": float(item.get("weighted_vote_score") or 0),
+                    "votes_up": int(item.get("votes_up") or 0),
+                    "votes_funny": int(item.get("votes_funny") or 0),
+                    "review_page": page_index,
+                })
+            collected += len(reviews)
+            next_cursor = str(payload.get("cursor") or "")
+            if not next_cursor or next_cursor == cursor:
+                break
+            cursor = next_cursor
+            page_index += 1
+            time.sleep(config.sleep_seconds)
+    return pd.DataFrame(rows)
+
+
 def collect_all(paths: ProjectPaths, settings: ProjectSettings = SETTINGS, max_apps: int | None = None) -> CollectionResult:
     config = CrawlConfig(
         max_apps=max_apps if max_apps is not None else settings.max_apps,

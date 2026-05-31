@@ -6,6 +6,7 @@
 - `docs/MANUAL.md`: 실행 방법과 산출물 위치
 - `docs/DEVELOPER_AND_USER_EXPERIENCE.md`: 개발자 경험과 사용자 경험 설계 정리
 - `docs/TEAM_PROJECT_PLAN.md`: 팀 일정, 역할, 단계별 실행 계획
+- `docs/DATA_COLLECTION_RUNBOOK.md`: 데이터 수집 브랜치 실행 준비와 리뷰 타임라인 수집 방법
 
 ## 주요 경로
 - `src/steam_success/`: 크롤링, 전처리, 피처, 모델링, 시각화, 리포트 생성 코드

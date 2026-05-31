@@ -39,6 +39,8 @@ PYTHONPATH=src python3 -m steam_success.pipeline --max-apps 250
 | external_request_sleep_seconds | `0.15` |
 | review_text_sample_size | `24` |
 | review_texts_per_game | `20` |
+| review_timeline_page_size | `100` |
+| review_timeline_max_reviews_per_game | `500` |
 | country | `US` |
 | language | `english` |
 | youtube_search_domain | `youtube.com` |
@@ -66,3 +68,19 @@ PYTHONPATH=src python3 -m steam_success.pipeline --max-apps 250
 - 시각화 이미지: `reports/figures/`
 - 학습 데이터: `data/processed/modeling_dataset.csv`
 - 저장 모델: `models/steam_success_model.joblib`
+
+## 6. 리뷰 timestamp 타임라인 수집
+출시 7일/30일/90일 리뷰 지표를 만들려면 리뷰 요약이 아니라 리뷰별 `timestamp_created`가 필요하다. 기존 수집으로 `data/raw/steam_search_crawl.csv`를 만든 뒤 아래 명령을 실행한다.
+
+```bash
+PYTHONPATH=src python3 -m steam_success.collect.review_timeline --max-apps 50 --max-reviews-per-game 500
+```
+
+Windows PowerShell에서는 아래처럼 실행한다.
+
+```powershell
+$env:PYTHONPATH="src"
+python -m steam_success.collect.review_timeline --max-apps 50 --max-reviews-per-game 500
+```
+
+결과는 `data/raw/steam_review_timeline.csv`와 `data/raw/review_timeline/`에 저장된다.
