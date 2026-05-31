@@ -89,3 +89,7 @@ python -m steam_success.collect.review_timeline --max-apps 50 --max-reviews-per-
 ```
 
 결과는 `data/raw/steam_review_timeline.csv`와 `data/raw/review_timeline/`에 저장된다.
+
+## 7. 문서 위치
+
+핵심 문서는 `docs/README.md`의 읽는 순서를 따른다. 긴 UX 설계, 상태 점검 기록, 질문 목록, PDF 요약은 `docs/reference/`에 보관한다.

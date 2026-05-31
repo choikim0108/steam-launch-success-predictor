@@ -42,7 +42,7 @@ legacy/current_snapshot/docs/ASSUMPTIONS_AND_QUESTIONS.md
 
 ```text
 docs/DATA_COLLECTION_RUNBOOK.md
-docs/DEVELOPER_AND_USER_EXPERIENCE.md
+docs/reference/DEVELOPER_AND_USER_EXPERIENCE.md
 docs/TEAM_PROJECT_PLAN.md
 reports/experience_scenario.html
 ```

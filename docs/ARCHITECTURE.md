@@ -4,6 +4,8 @@
 
 Steam 신작 게임의 상점 정보와 출시 초기 리뷰 데이터를 수집해 출시 후 90일 성공 가능성을 예측한다. 현재 누적 리뷰 기준으로 만든 초기 작동 모델은 `legacy/current_snapshot/`에 보존했고, 신규 작업은 `success_90d` 기준으로 진행한다.
 
+상세 UX 설계와 상태 점검 기록은 `docs/reference/`에 있으며, 실제 구현 판단은 이 문서와 `DATA_COLLECTION_RUNBOOK.md`를 우선한다.
+
 ## 데이터 흐름
 
 ```text
@@ -133,4 +135,3 @@ reports/predictions_90d.csv
 reports/RUN_SUMMARY_90D.md
 models/steam_success_90d_model.joblib
 ```
-

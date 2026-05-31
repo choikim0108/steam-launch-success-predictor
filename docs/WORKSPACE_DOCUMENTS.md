@@ -3,11 +3,10 @@
 ## 먼저 읽을 문서
 - `AGENTS.md`: 에이전트 작업 전 필수 규칙
 - `README.md`: 프로젝트 목적, 데이터 계획, 성공 기준
-- `docs/MANUAL.md`: 실행 방법과 산출물 위치
-- `docs/DEVELOPER_AND_USER_EXPERIENCE.md`: 개발자 경험과 사용자 경험 설계 정리
 - `docs/TEAM_PROJECT_PLAN.md`: 팀 일정, 역할, 단계별 실행 계획
-- `docs/DATA_COLLECTION_RUNBOOK.md`: 데이터 수집 브랜치 실행 준비와 리뷰 타임라인 수집 방법
-- `docs/PROJECT_STATE_AUDIT.md`: 현재 프로젝트 상태 점검과 레거시 산출물 정리 기준
+- `docs/DATA_COLLECTION_RUNBOOK.md`: 데이터 수집 실행 순서
+- `docs/ARCHITECTURE.md`: 90일 성공 예측 파이프라인 구조
+- `docs/MANUAL.md`: 명령어와 산출물 위치
 
 ## 주요 경로
 - `src/steam_success/`: 크롤링, 전처리, 피처, 모델링, 시각화, 리포트 생성 코드
@@ -18,7 +17,8 @@
 - `reports/figures/`: HTML에 포함되는 최신 PNG 시각화
 - `reports/experience_scenario.html`: 사용자 경험 중심 시각화 문서
 - `models/`: 학습된 모델 파일
-- `docs/`: 프로젝트 설명, 아키텍처, 실행 매뉴얼, 가정/질문, PDF 요약
+- `docs/`: 핵심 실행 문서
+- `docs/reference/`: 참고용 상세 문서, 과거 가이드, 질문 목록, PDF 요약
 - `legacy/current_snapshot/`: 현재 누적 리뷰 기준으로 생성된 초기 모델/리포트 보존본
 
 ## 작업공간 루트 참고 자료
