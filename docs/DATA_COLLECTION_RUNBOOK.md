@@ -43,6 +43,34 @@ data/raw/steam_appdetails.csv
 data/raw/steam_review_summaries.csv
 ```
 
+## 1.5차 수집: SteamSpy appid 후보 기반 수집
+
+Steam 공식 전체 appid API가 접근되지 않거나 API key가 없을 때는 SteamSpy `request=all&page=N`을 appid 후보 목록으로 사용한다. 이 방식은 전체 Steam 모집단의 완전한 대체는 아니지만, 검색 페이지보다 많은 appid 후보를 빠르게 확보할 수 있다.
+
+```bash
+$env:PYTHONPATH="src"
+python -m steam_success.collect.steamspy_appids --pages 1
+python -m steam_success.collect.appdetails_for_appids --max-apps 100
+python -m steam_success.preprocess.candidate_filter --year 2025
+```
+
+생성 파일:
+
+```text
+data/raw/steamspy_appids.csv
+data/raw/steam_appdetails.csv
+data/raw/steam_review_summaries.csv
+data/interim/game_candidates_2025.csv
+```
+
+측정 기준:
+
+```text
+후보 100개 appdetails 수집 + 2025 필터링: 약 1~1.5분
+후보 5000개 appdetails 수집 + 2025 필터링: 약 50~75분 예상
+후보 10000개 appdetails 수집 + 2025 필터링: 약 100~150분 예상
+```
+
 ## 2차 수집: 리뷰 timestamp 타임라인
 
 90일 성공 라벨을 만들려면 현재 리뷰 요약만으로는 부족하다. 리뷰별 `timestamp_created`와 `voted_up`을 수집해야 출시 후 7일/30일/90일 지표를 계산할 수 있다.
@@ -52,6 +80,13 @@ appid CSV를 기준으로 수집:
 ```bash
 $env:PYTHONPATH="src"
 python -m steam_success.collect.review_timeline --max-apps 50 --max-reviews-per-game 500
+```
+
+2025년 후보 CSV를 기준으로 수집:
+
+```bash
+$env:PYTHONPATH="src"
+python -m steam_success.collect.review_timeline --input-csv data/interim/game_candidates_2025.csv --max-reviews-per-game 500
 ```
 
 특정 appid만 테스트:
@@ -73,15 +108,19 @@ data/raw/review_timeline/review_timeline_<appid>_page_<n>.json
 MVP:
 
 ```text
-게임 300~500개
+SteamSpy 후보 5000개
+2025년 게임 후보 약 200~300개 예상
 게임당 리뷰 최대 500개
+총 수집 시간 약 2~3시간 예상
 ```
 
 권장:
 
 ```text
-게임 800~1,500개
-게임당 리뷰 최대 1,000개
+SteamSpy 후보 10000개
+2025년 게임 후보 약 400~600개 예상
+게임당 리뷰 최대 500~1,000개
+총 수집 시간 약 4~6시간 예상
 ```
 
 주의:
