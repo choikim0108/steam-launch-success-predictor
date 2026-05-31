@@ -47,6 +47,43 @@ start=30,000 -> Dec 4, 2024
 따라서 sleep 1~2초, exponential backoff, 페이지별 raw 저장, checkpoint CSV가 필요하다.
 ```
 
+## 1차 실행: 2025~2026 appid 실제 수집
+
+명령:
+
+```powershell
+$env:PYTHONPATH="src"
+python -m steam_success.collect.search_release_window --start-year 2025 --end-year 2026 --stop-before-year 2025 --sleep-seconds 1.5
+```
+
+결과:
+
+```text
+pages_fetched=289
+total_count=113,181
+total_rows=28,899
+unique_appids=28,899
+start range=0~28,800
+2026_trend=9,466
+2025_trend_label_candidate=19,163
+out_of_range=270
+```
+
+종료 조건:
+
+```text
+start=28,700과 start=28,800에서 2024년 페이지만 연속 확인
+stop_reason=before_2025_for_2_pages
+```
+
+판단:
+
+```text
+2025~2026 출시 구간 appid 후보 전체 수집은 완료됐다.
+다음 병목은 28,899개 전체 appdetails/review summary 수집이다.
+이 단계는 장시간 실행될 수 있으므로 raw JSON 재사용, CSV checkpoint, 재실행 resume이 필요하다.
+```
+
 ## 2차: 구버전 공식 app list 실패
 
 시도한 URL:
@@ -177,6 +214,7 @@ sleep 1~2초 기준 수십 분 단위 예상
 
 appdetails:
 후보 100개당 약 1~1.5분
+28,899개 전체 기준 약 7~11시간 예상
 
 review timeline:
 게임 250개 x 500리뷰: 대략 30~60분 예상

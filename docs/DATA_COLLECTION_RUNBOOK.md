@@ -69,12 +69,27 @@ python -m steam_success.collect.appdetails_for_appids --input-csv data/interim/s
 python -m steam_success.preprocess.candidate_filter --start-year 2025 --end-year 2026
 ```
 
+대량 실행용:
+
+```powershell
+$env:PYTHONPATH="src"
+python -m steam_success.collect.appdetails_for_appids --input-csv data/interim/search_release_window_appids.csv --flush-every 100
+```
+
 생성 파일:
 
 ```text
 data/raw/steam_appdetails.csv
 data/raw/steam_review_summaries.csv
 data/interim/game_candidates_2025_2026.csv
+```
+
+`appdetails_for_appids`는 중단 후 재실행을 지원한다.
+
+```text
+이미 저장된 data/raw/appdetails_<appid>.json은 재사용한다.
+이미 저장된 data/raw/review_summary_<appid>.json은 재사용한다.
+data/raw/steam_appdetails.csv와 data/raw/steam_review_summaries.csv를 flush-every마다 갱신한다.
 ```
 
 주의:
@@ -154,6 +169,7 @@ python -m steam_success.preprocess.candidate_filter --start-year 2025 --end-year
 공식 appid 16.8만 개 수집: 약 7초
 appdetails는 후보 100개당 약 1~1.5분
 SteamSpy 후보 100개 -> appdetails 필터링: 약 1~1.5분
+실제 2025~2026 상점 검색 후보 28,899개 기준 전체 appdetails/review summary는 약 7~11시간 예상
 ```
 
 ## 수집 규모 기준
