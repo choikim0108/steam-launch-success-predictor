@@ -10,13 +10,16 @@
 2. `DATA_COLLECTION_RUNBOOK.md`
    - 실제 데이터 수집 명령과 수집 순서
 
-3. `ARCHITECTURE.md`
+3. `DATA_COLLECTION_ATTEMPTS.md`
+   - 수집 조사 결과, 429 리스크, 공식 API/SteamSpy/SteamDB 검증 기준
+
+4. `ARCHITECTURE.md`
    - 90일 성공 예측 파이프라인과 산출물 구조
 
-4. `MANUAL.md`
+5. `MANUAL.md`
    - 명령어, 설정값, 결과 파일 위치
 
-5. `WORKSPACE_DOCUMENTS.md`
+6. `WORKSPACE_DOCUMENTS.md`
    - 저장소 문서와 주요 경로 인덱스
 
 ## 참고 문서
@@ -30,4 +33,3 @@
 - 초기 프로젝트 가이드
 
 핵심 작업 중에는 먼저 루트의 핵심 문서만 읽고, 배경 설명이 필요할 때만 `docs/reference/`를 확인한다.
-

@@ -1,49 +1,55 @@
-# 데이터 수집 1차~3차 시도 기록
+# 데이터 수집 조사 및 시도 기록
 
-## 목표
+## 목표 변경
 
-2025년 출시 Steam 게임을 기준으로 `success_90d`를 만들 수 있는 통합 데이터셋을 준비한다.
-
-최종 데이터 흐름:
+현재 목표는 2025~2026 Steam 출시 게임을 기준으로 최신 트렌드를 분석하고, 출시 후 90일이 지난 게임에 대해서만 `success_90d` 학습 라벨을 만드는 것이다.
 
 ```text
-appid 후보
--> appdetails
--> 2025년 출시 game 필터링
+2025~2026 Steam 출시 구간
+-> appdetails로 출시일/상점 feature 확정
 -> Reviews API timestamp 수집
--> 7/30/90일 리뷰 지표
--> success_90d
+-> 7일/30일/90일 리뷰 지표
+-> label_eligible_90d 게임만 success_90d 생성
 ```
 
-## 1차 시도: Steam 검색 기반 후보 수집
-
-명령:
-
-```powershell
-$env:PYTHONPATH="src"
-python -m steam_success.collect.base --max-apps 50
-```
-
-결과:
+현재 기준일은 2026-06-01이다.
 
 ```text
-search_rows=50
-detail_rows=50
-review_summary_rows=50
-소요 시간: 약 46초
+학습 라벨 가능: release_date <= 2026-03-03
+트렌드/예측 전용: release_date >= 2026-03-04
+```
+
+## 1차: Steam 상점 검색 최신순 조사
+
+Steam Store `search/results` endpoint를 `Released_DESC`, `category1=998`, `count=100` 기준으로 조사했다.
+
+```text
+total_count=113,180
+start=0      -> May 31, 2026
+start=10,000 -> Dec 18, 2025
+start=20,000 -> Jun 25, 2025
+start=28,000 -> Jan 18, 2025
+start=30,000 -> Dec 4, 2024
 ```
 
 판단:
 
 ```text
-수집 자체는 정상 동작한다.
-다만 최신 출시순 검색 결과는 현재 2026년 최신작부터 내려오기 때문에 2025년 학습 데이터 확보에는 비효율적이다.
-검색 기반 수집은 빠른 smoke test와 직접 크롤링 source 확보용으로 사용한다.
+상점 검색 최신순으로 내려가면 2025~2026 출시 구간을 직접 겨냥할 수 있다.
+대략 start=0~30,000 범위가 2026~2025 구간이다.
+이 방식이 현재 프로젝트의 메인 수집 루트에 가장 적합하다.
 ```
 
-## 2차 시도: API-first appid 후보 수집
+주의:
 
-시도한 공식 Steam app list URL:
+```text
+빠른 연속 요청 중 429 Too Many Requests가 발생했다.
+따라서 sleep 1~2초, exponential backoff, 페이지별 raw 저장, checkpoint CSV가 필요하다.
+```
+
+## 2차: 구버전 공식 app list 실패
+
+시도한 URL:
 
 ```text
 https://api.steampowered.com/ISteamApps/GetAppList/v2/?format=json
@@ -57,41 +63,15 @@ https://api.steampowered.com/ISteamApps/GetAppList/v0002/?format=json
 Method 'GetAppList' not found in interface 'ISteamApps'
 ```
 
-대체 시도:
-
-```text
-https://steamspy.com/api.php?request=all&page=0
-```
-
-결과:
-
-```text
-status=200
-page당 1000개 appid 후보
-소요 시간: 약 0.4~0.7초/page
-```
-
-SteamSpy appid 후보 100개에 대해 appdetails를 수집해 2025년 게임을 필터링한 결과:
-
-```text
-sample_appids=100
-소요 시간: 약 41~85초
-2025년 출시 game=5개
-```
-
 판단:
 
 ```text
-구버전 공식 ISteamApps/GetAppList는 현재 환경에서 사용 불가.
-API key가 있는 IStoreService/GetAppList를 확인하거나, SteamSpy all pagination을 fallback 후보 appid source로 사용한다.
-SteamSpy는 appid 후보 확보에는 빠르지만 인기순/owners 중심 편향 가능성이 있으므로, 최종 보고서에서는 후보 source로 명시한다.
+구버전 ISteamApps/GetAppList는 사용하지 않는다.
 ```
 
-## 2차 보완: 공식 IStoreService/GetAppList 확인
+## 3차: 공식 IStoreService/GetAppList 확인
 
-Steam Web API key를 `.env`에 넣은 뒤 공식 `IStoreService/GetAppList`를 다시 확인했다.
-
-테스트 결과:
+Steam Web API key를 `.env`에 넣은 뒤 공식 `IStoreService/GetAppList`를 확인했다.
 
 ```text
 https://api.steampowered.com/IStoreService/GetAppList/v1/
@@ -106,45 +86,44 @@ https://partner.steam-api.com/IStoreService/GetAppList/v1/
 status=403
 ```
 
-공식 appid 대량 수집 측정:
+대량 수집 측정:
 
 ```text
-공식 appid 50000개: 약 3.8초
-공식 appid 168426개: 약 7.2초
-max_appid=4785480
+공식 appid 50,000개: 약 3.8초
+공식 appid 168,426개: 약 7.2~8.8초
+max_appid=4,785,480
 ```
 
 판단:
 
 ```text
-API key가 있으면 공식 appid 후보 수집은 IStoreService/GetAppList를 1순위로 사용한다.
-다만 이 응답에는 release date가 없으므로 2025년 출시 여부는 appdetails를 호출한 뒤에만 확정할 수 있다.
-전체 16만 개를 모두 appdetails로 호출하면 너무 오래 걸리므로, 공식 전체 appid 목록에서 random 표본과 high appid recent proxy 표본을 섞어 상세 수집 후보를 만든다.
-SteamSpy는 공식 API 실패 시 fallback으로 낮춘다.
+공식 GetAppList는 game 후보 모집단 검증용으로 유용하다.
+하지만 release date가 없으므로 2025~2026 게임을 직접 추출할 수 없다.
+전체 16만 개를 모두 appdetails로 호출하는 것은 비효율적이다.
+따라서 메인 수집이 아니라 상점 검색 결과의 누락/편향 검증에 사용한다.
 ```
 
-## 3차 시도: 2025년 후보 리뷰 타임라인 수집
+## 4차: SteamSpy 확인
 
-2차에서 찾은 2025년 게임 5개에 대해 리뷰 timestamp를 수집했다.
-
-대상 appid:
+SteamSpy `request=all&page=N`을 확인했다.
 
 ```text
-2246340
-1491000
-3164500
-1116170
-3241660
+page당 약 1000개 appid 후보
+10페이지 수집 결과: 10,000 rows, 9,960 unique
+min_appid=10
+max_appid=3,605,460
 ```
 
-명령:
+판단:
 
-```powershell
-$env:PYTHONPATH="src"
-python -m steam_success.collect.review_timeline --input-csv steamspy_2025_sample.csv --max-reviews-per-game 100
+```text
+SteamSpy는 빠르지만 공식 Steam 데이터가 아니다.
+owners/인기권 중심 편향 가능성이 있으므로 메인 수집이 아니라 fallback과 인기권 누락 검증에 사용한다.
 ```
 
-결과:
+## 5차: 리뷰 timestamp 수집
+
+2025년 후보 5개에 대해 Reviews API timestamp를 수집했다.
 
 ```text
 review_timeline_rows=500
@@ -156,120 +135,50 @@ appids=5
 판단:
 
 ```text
-2025년 후보가 확보되면 리뷰 timestamp 수집은 정상 동작한다.
-다음 병목은 리뷰 수집이 아니라 2025년 후보 appid를 충분히 확보하는 단계다.
+2025~2026 후보가 확보되면 리뷰 timestamp 수집은 정상 동작한다.
+다음 병목은 리뷰 수집보다 Steam 상점 검색 구간 크롤링의 429 대응과 appdetails 호출량 관리다.
 ```
 
-## End-to-end 샘플 측정
+## 6차: SteamDB 검증 위치
 
-SteamSpy 1페이지 1000개 후보 중 appdetails 100개만 처리하고, 2025년 후보에 대해 게임당 리뷰 50개를 수집한 결과다.
-
-명령 흐름:
-
-```powershell
-$env:PYTHONPATH="src"
-python -m steam_success.collect.steamspy_appids --pages 1
-python -m steam_success.collect.appdetails_for_appids --max-apps 100
-python -m steam_success.preprocess.candidate_filter --year 2025
-python -m steam_success.collect.review_timeline --input-csv data/interim/game_candidates_2025.csv --max-reviews-per-game 50 --page-size 50
-```
-
-측정 결과:
+SteamDB의 연도별 출시 통계는 외부 규모 검증 기준으로 사용한다.
 
 ```text
-SteamSpy 후보 수집: 1.95초
-appdetails + review summary 100개: 85.37초
-2025년 후보 필터링: 1.09초
-2025년 후보 수: 5개
-리뷰 타임라인 5개 x 50리뷰: 6.05초
-총 소요 시간: 94.47초
+SteamDB는 자동 대량 크롤링 대상이 아니다.
+보고서에서 Steam 상점 검색으로 확보한 2025 출시 규모가 외부 통계와 크게 어긋나는지 확인하는 기준으로 인용한다.
 ```
 
-판단:
+참고 링크:
 
 ```text
-실제 병목은 appdetails 수집이다.
-후보 100개당 1~1.5분 정도로 잡는 것이 안전하다.
-리뷰 타임라인은 후보 게임 수와 게임당 리뷰 제한을 낮게 잡으면 빠르게 검증 가능하다.
+https://steamdb.info/stats/releases/
+```
+
+## 확정 결론
+
+```text
+메인:
+Steam 상점 검색 Released_DESC로 2025~2026 출시 구간 수집
+
+검증:
+공식 IStoreService/GetAppList로 game 후보 모집단 차이 확인
+SteamSpy로 인기권 게임 누락 여부 표본 확인
+SteamDB로 연도별 출시 규모 외부 검증
+
+fallback:
+상점 검색이 막히면 공식 appid 표본 또는 SteamSpy appid 후보를 사용
 ```
 
 ## 예상 시간
 
-측정값 기준:
-
 ```text
-공식 appid 168426개 -> appid 후보 목록 확보: 약 7초
-SteamSpy 후보 100개 -> appdetails 필터링: 약 1~1.5분
-SteamSpy 후보 1000개 -> appdetails 필터링: 약 10~15분
-SteamSpy 후보 5000개 -> appdetails 필터링: 약 50~75분
-SteamSpy 후보 10000개 -> appdetails 필터링: 약 100~150분
-공식 표본 후보 10000개 -> appdetails 필터링: 약 100~150분
-```
+Steam 상점 검색 2025~2026 구간 appid 수집:
+sleep 1~2초 기준 수십 분 단위 예상
 
-리뷰 타임라인:
+appdetails:
+후보 100개당 약 1~1.5분
 
-```text
-게임 5개 x 50~100리뷰: 약 5~6초
+review timeline:
 게임 250개 x 500리뷰: 대략 30~60분 예상
 게임 500개 x 500리뷰: 대략 60~120분 예상
-네트워크 제한이나 Steam 응답 지연이 있으면 더 늘어날 수 있음
-```
-
-## 일정에 넣을 수 있는 현실적 범위
-
-MVP 실행:
-
-```text
-공식 전체 appid 목록 수집
-random 2500개 + high appid recent proxy 2500개
-예상 2025년 후보 약 200~300개
-게임당 리뷰 최대 500개
-총 수집 예상 시간 약 2~3시간
-```
-
-확장 실행:
-
-```text
-공식 전체 appid 목록 수집
-random 5000개 + high appid recent proxy 5000개
-예상 2025년 후보 약 400~600개
-게임당 리뷰 최대 500~1000개
-총 수집 예상 시간 약 4~6시간
-```
-
-팀 일정상 권장:
-
-```text
-먼저 공식 appid 기반 5000개 상세 후보로 MVP 데이터셋을 확정한다.
-EDA와 모델링이 돌아가는 것을 확인한 뒤, 시간이 남으면 10000개 후보로 확장한다.
-처음부터 10000개 이상을 목표로 잡으면 전처리와 검증 시간이 부족해질 수 있다.
-```
-
-## 확정 계획
-
-```text
-1차:
-검색 기반 수집 50~300개로 파이프라인 smoke test
-
-2차:
-공식 IStoreService/GetAppList로 전체 appid 후보 확보
-random 표본 + high appid recent proxy 표본을 섞어 appdetails 후보 생성
-appdetails로 2025년 출시 game 필터링
-
-2차 fallback:
-공식 API key나 호출 문제가 생기면 SteamSpy pages 5~10개에서 appid 5000~10000개 확보
-
-3차:
-필터링된 2025년 후보에 Reviews API timeline 수집
-max_reviews_per_game=500부터 시작
-```
-
-## 안 되는 것 / 주의할 것
-
-```text
-공식 ISteamApps/GetAppList는 현재 환경에서 404로 실패.
-공식 IStoreService/GetAppList는 API key를 사용하면 public host에서 정상 동작.
-공식 GetAppList에는 release date가 없으므로 appdetails 이전에는 2025년 게임을 확정할 수 없음.
-검색 기반 최신순 수집은 2025년 학습 데이터 확보에는 비효율적.
-SteamSpy all은 빠르지만 전체 Steam 모집단의 무편향 목록이라고 단정하면 안 되므로 fallback으로만 사용.
 ```

@@ -2,23 +2,25 @@
 
 ## 목적
 
-Steam 신작 게임의 상점 정보와 출시 초기 리뷰 데이터를 수집해 출시 후 90일 성공 가능성을 예측한다. 현재 누적 리뷰 기준으로 만든 초기 작동 모델은 `legacy/current_snapshot/`에 보존했고, 신규 작업은 `success_90d` 기준으로 진행한다.
+2025~2026 Steam 출시 게임의 상점 정보와 출시 초기 리뷰 데이터를 수집해 최신 트렌드를 분석하고, 출시 후 90일 성공 가능성을 예측한다. 현재 누적 리뷰 기준으로 만든 초기 작동 모델은 `legacy/current_snapshot/`에 보존했고, 신규 작업은 `success_90d` 기준으로 진행한다.
+
+현재 기준일은 2026-06-01이다. `success_90d` 학습 라벨은 `release_date <= 2026-03-03` 게임에만 만들고, 그 이후 출시된 2026 게임은 최신 트렌드와 예측 대상에만 포함한다.
 
 상세 UX 설계와 상태 점검 기록은 `docs/reference/`에 있으며, 실제 구현 판단은 이 문서와 `DATA_COLLECTION_RUNBOOK.md`를 우선한다.
 
 ## 데이터 흐름
 
 ```text
-Steam 검색/상점 크롤링
+Steam 상점 검색 Released_DESC 크롤링
         |
         v
-appid 후보 수집
+2025~2026 release window appid 수집
         |
         v
 Steam appdetails API
         |
         v
-상점 feature 생성
+상점 feature / label_eligible_90d 생성
         |
         v
 Steam Reviews API 페이지네이션
@@ -113,9 +115,12 @@ success_90d
 
 ## 보조 분석 위치
 
-SteamSpy, 웹진 관심도, Metacritic/OpenCritic, 현재 동접자는 예측 모델의 핵심 입력이 아니라 현재 성과 비교와 사용자 설명용 보조 지표로 둔다.
+공식 GetAppList, SteamSpy, SteamDB, 웹진 관심도, Metacritic/OpenCritic, 현재 동접자는 예측 모델의 핵심 입력이 아니라 현재 성과 비교와 사용자 설명용 보조 지표로 둔다.
 
 ```text
+official_population_gap
+steamspy_popular_overlap
+steamdb_yearly_release_count
 sales_proxy_score
 critic_score
 attention_score
@@ -128,6 +133,8 @@ activity_score
 
 ```text
 data/raw/steam_review_timeline.csv
+data/interim/search_release_window_appids.csv
+data/interim/game_candidates_2025_2026.csv
 data/interim/review_windows.csv
 data/processed/modeling_dataset_90d.csv
 reports/model_metrics_90d.json

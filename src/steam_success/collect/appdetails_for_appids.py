@@ -56,9 +56,15 @@ def main() -> None:
     if args.input_csv is not None:
         input_csv = args.input_csv
     else:
+        search_window_csv = root / "data" / "interim" / "search_release_window_appids.csv"
         official_csv = root / "data" / "raw" / "steam_official_appids.csv"
         steamspy_csv = root / "data" / "raw" / "steamspy_appids.csv"
-        input_csv = official_csv if official_csv.exists() else steamspy_csv
+        if search_window_csv.exists():
+            input_csv = search_window_csv
+        elif official_csv.exists():
+            input_csv = official_csv
+        else:
+            input_csv = steamspy_csv
     run(root, input_csv, args.max_apps)
 
 

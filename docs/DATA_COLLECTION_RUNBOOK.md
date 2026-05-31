@@ -1,162 +1,102 @@
 # 데이터 수집 실행 준비
 
-## 브랜치
+## 브랜치와 환경
 
 데이터 수집 작업 브랜치는 `yongwoo`를 사용한다.
 
-```bash
+```powershell
 git switch yongwoo
-```
-
-## 환경 확인
-
-필요 패키지는 `requirements.txt`에 고정되어 있다.
-
-```bash
 python -m pip install --user -r requirements.txt
+$env:PYTHONPATH="src"
 python -m compileall src
 ```
 
-현재 환경에서는 Python 3.13 기준으로 수집/모델링 의존성이 설치되어 있다.
-
-## Steam Web API key 보관
-
-Steam Web API key는 개인 키이므로 Git에 커밋하지 않는다. 로컬에서만 `.env` 파일을 만들고, 팀 공유용으로는 `.env.example`만 사용한다.
+Steam Web API key는 개인 키이므로 Git에 커밋하지 않는다. 로컬 `.env`에만 둔다.
 
 ```powershell
 Copy-Item .env.example .env
 notepad .env
-```
-
-`.env` 안에는 다음처럼 넣는다.
-
-```text
-STEAM_WEB_API_KEY=발급받은_키
-```
-
-PowerShell에서 실행할 때는 다음처럼 현재 터미널 세션에만 환경변수로 올린다.
-
-```powershell
 $env:STEAM_WEB_API_KEY = (Get-Content .env | Where-Object { $_ -like "STEAM_WEB_API_KEY=*" }).Split("=", 2)[1]
-```
-
-확인할 때는 키 전체를 출력하지 말고 존재 여부만 확인한다.
-
-```powershell
 if ($env:STEAM_WEB_API_KEY) { "STEAM_WEB_API_KEY loaded" }
 ```
 
-## 1차 수집: appid, 상점 정보, 리뷰 요약
+## 메인 수집: 2025~2026 출시 구간 appid
 
-기본 수집 CLI는 Steam 검색 페이지에서 appid를 모으고, appdetails와 리뷰 요약만 수집한다. 레거시 모델 학습과 리포트 생성을 피하기 위해 `steam_success.pipeline`이 아니라 `steam_success.collect.base`를 사용한다.
+메인 수집 루트는 Steam 상점 검색 `Released_DESC` 최신순 크롤링이다. 2026년 게임은 최신 트렌드 대상, 2025년 게임은 트렌드와 90일 라벨 후보로 저장한다. 2024년 구간에 진입하면 중단한다.
 
-```bash
+```powershell
 $env:PYTHONPATH="src"
-python -m steam_success.collect.base
+python -m steam_success.collect.search_release_window --start-year 2025 --end-year 2026 --stop-before-year 2025
 ```
 
-샘플 수를 제한해 먼저 확인하려면 다음처럼 실행한다.
+smoke test:
 
-```bash
+```powershell
 $env:PYTHONPATH="src"
-python -m steam_success.collect.base --max-apps 50
+python -m steam_success.collect.search_release_window --start-year 2025 --end-year 2026 --stop-before-year 2025 --max-pages 2
+```
+
+2024 진입 stop 조건만 빠르게 확인할 때:
+
+```powershell
+$env:PYTHONPATH="src"
+python -m steam_success.collect.search_release_window --start-year 2025 --end-year 2026 --stop-before-year 2025 --start-offset 30000 --max-pages 2 --stop-pages 1
 ```
 
 생성 파일:
 
 ```text
-data/raw/steam_search_crawl.csv
-data/raw/steam_appdetails.csv
-data/raw/steam_review_summaries.csv
+data/interim/search_release_window_appids.csv
+data/raw/search_release_window/search_results_start_<n>.json
 ```
 
-## 1.5차 수집: 공식 Steam appid 후보 기반 수집
+429 대응 원칙:
 
-Steam Web API key가 있으면 공식 `IStoreService/GetAppList`를 1순위 appid 후보 source로 사용한다. 이 엔드포인트는 출시일을 직접 주지는 않지만, 전체 appid 후보를 빠르게 가져올 수 있다.
+```text
+기본 sleep은 1~2초로 둔다.
+429 Too Many Requests가 발생하면 exponential backoff로 재시도한다.
+페이지별 raw JSON을 저장한다.
+누적 CSV를 매 페이지마다 갱신해 중단 후 재시작 가능하게 한다.
+```
 
-```bash
+## appdetails와 리뷰 요약
+
+1차에서 만든 2025~2026 appid 후보에 대해 appdetails와 리뷰 요약을 수집한다.
+
+```powershell
 $env:PYTHONPATH="src"
-python -m steam_success.collect.official_appids --max-apps 200000 --batch-size 50000
-python -m steam_success.preprocess.appid_sample --random-size 5000 --recent-size 5000
-python -m steam_success.collect.appdetails_for_appids --input-csv data/interim/appid_candidates_for_details.csv
-python -m steam_success.preprocess.candidate_filter --year 2025
+python -m steam_success.collect.appdetails_for_appids --input-csv data/interim/search_release_window_appids.csv
+python -m steam_success.preprocess.candidate_filter --start-year 2025 --end-year 2026
 ```
 
 생성 파일:
 
 ```text
-data/raw/steam_official_appids.csv
-data/interim/appid_candidates_for_details.csv
 data/raw/steam_appdetails.csv
 data/raw/steam_review_summaries.csv
-data/interim/game_candidates_2025.csv
-```
-
-측정 기준:
-
-```text
-공식 appid 5만 개 수집: 약 4초
-공식 appid 16.8만 개 수집: 약 7초
-appdetails는 여전히 후보 100개당 약 1~1.5분
+data/interim/game_candidates_2025_2026.csv
 ```
 
 주의:
 
 ```text
-공식 GetAppList에는 release date가 없으므로, 2025년 게임 여부는 appdetails 이후에만 확정할 수 있다.
-전체 16만 개를 모두 appdetails로 호출하면 시간이 너무 오래 걸린다.
-따라서 random 표본과 high appid recent proxy 표본을 섞어 appdetails 후보를 만든다.
+candidate_filter는 2025~2026 게임을 모두 남긴다.
+label_eligible_90d=true인 게임만 success_90d 학습 라벨을 만들 수 있다.
+현재 기준일 2026-06-01에서 label 가능 기준은 release_date <= 2026-03-03이다.
 ```
 
-## 1.6차 fallback: SteamSpy appid 후보 기반 수집
-
-Steam 공식 전체 appid API가 접근되지 않거나 API key가 없을 때는 SteamSpy `request=all&page=N`을 appid 후보 목록으로 사용한다. 이 방식은 전체 Steam 모집단의 완전한 대체는 아니지만, 검색 페이지보다 많은 appid 후보를 빠르게 확보할 수 있다.
-
-```bash
-$env:PYTHONPATH="src"
-python -m steam_success.collect.steamspy_appids --pages 1
-python -m steam_success.collect.appdetails_for_appids --max-apps 100
-python -m steam_success.preprocess.candidate_filter --year 2025
-```
-
-생성 파일:
-
-```text
-data/raw/steamspy_appids.csv
-data/raw/steam_appdetails.csv
-data/raw/steam_review_summaries.csv
-data/interim/game_candidates_2025.csv
-```
-
-측정 기준:
-
-```text
-후보 100개 appdetails 수집 + 2025 필터링: 약 1~1.5분
-후보 5000개 appdetails 수집 + 2025 필터링: 약 50~75분 예상
-후보 10000개 appdetails 수집 + 2025 필터링: 약 100~150분 예상
-```
-
-## 2차 수집: 리뷰 timestamp 타임라인
+## 리뷰 timestamp 타임라인
 
 90일 성공 라벨을 만들려면 현재 리뷰 요약만으로는 부족하다. 리뷰별 `timestamp_created`와 `voted_up`을 수집해야 출시 후 7일/30일/90일 지표를 계산할 수 있다.
 
-appid CSV를 기준으로 수집:
-
-```bash
+```powershell
 $env:PYTHONPATH="src"
-python -m steam_success.collect.review_timeline --max-apps 50 --max-reviews-per-game 500
-```
-
-2025년 후보 CSV를 기준으로 수집:
-
-```bash
-$env:PYTHONPATH="src"
-python -m steam_success.collect.review_timeline --input-csv data/interim/game_candidates_2025.csv --max-reviews-per-game 500
+python -m steam_success.collect.review_timeline --input-csv data/interim/game_candidates_2025_2026.csv --max-reviews-per-game 500
 ```
 
 특정 appid만 테스트:
 
-```bash
+```powershell
 $env:PYTHONPATH="src"
 python -m steam_success.collect.review_timeline --appid 1903340 --max-reviews-per-game 100
 ```
@@ -168,31 +108,72 @@ data/raw/steam_review_timeline.csv
 data/raw/review_timeline/review_timeline_<appid>_page_<n>.json
 ```
 
+## 검증 축: 공식 API / SteamSpy / SteamDB
+
+공식 `IStoreService/GetAppList`는 출시일을 주지 않으므로 메인 수집이 아니라 모집단 차이 확인에 사용한다. 전체 appdetails 호출은 하지 않는다.
+
+```powershell
+$env:PYTHONPATH="src"
+python -m steam_success.collect.official_appids --max-apps 200000 --batch-size 50000
+```
+
+SteamSpy는 공식 데이터가 아니므로 fallback과 인기권 누락 검증에만 사용한다.
+
+```powershell
+$env:PYTHONPATH="src"
+python -m steam_success.collect.steamspy_appids --pages 10
+```
+
+SteamDB 연도별 출시 통계는 자동 대량 크롤링 대상이 아니라 보고서에서 외부 규모 검증 기준으로 인용한다.
+
+## 보조/fallback 수집
+
+상점 검색이 막히는 경우에만 공식 GetAppList 후보에서 random 표본과 high appid recent proxy 표본을 섞어 appdetails 후보를 만든다.
+
+```powershell
+$env:PYTHONPATH="src"
+python -m steam_success.collect.official_appids --max-apps 200000 --batch-size 50000
+python -m steam_success.preprocess.appid_sample --random-size 5000 --recent-size 5000
+python -m steam_success.collect.appdetails_for_appids --input-csv data/interim/appid_candidates_for_details.csv
+python -m steam_success.preprocess.candidate_filter --start-year 2025 --end-year 2026
+```
+
+SteamSpy fallback:
+
+```powershell
+$env:PYTHONPATH="src"
+python -m steam_success.collect.steamspy_appids --pages 1
+python -m steam_success.collect.appdetails_for_appids --max-apps 100
+python -m steam_success.preprocess.candidate_filter --start-year 2025 --end-year 2026
+```
+
+측정 기준:
+
+```text
+공식 appid 5만 개 수집: 약 4초
+공식 appid 16.8만 개 수집: 약 7초
+appdetails는 후보 100개당 약 1~1.5분
+SteamSpy 후보 100개 -> appdetails 필터링: 약 1~1.5분
+```
+
 ## 수집 규모 기준
 
 MVP:
 
 ```text
-SteamSpy 후보 5000개
-2025년 게임 후보 약 200~300개 예상
+Steam 상점 검색 최신순 2025~2026 구간 appid 확보
+label_eligible_90d=true 게임부터 리뷰 timeline 수집
 게임당 리뷰 최대 500개
-총 수집 시간 약 2~3시간 예상
+수집은 429 방지를 위해 여러 번 나눠 실행
 ```
 
 권장:
 
 ```text
-SteamSpy 후보 10000개
-2025년 게임 후보 약 400~600개 예상
-게임당 리뷰 최대 500~1,000개
-총 수집 시간 약 4~6시간 예상
-```
-
-주의:
-
-```text
-출시 후 90일이 지나지 않은 게임은 success_90d 학습 데이터에서 제외한다.
-대형 히트작은 리뷰가 너무 많으므로 max_reviews_per_game 제한을 둔다.
+1차로 search_release_window smoke test
+2차로 2025~2026 전체 구간 appid 확보
+3차로 label_eligible_90d 게임부터 리뷰 timeline 수집
+시간이 남으면 2026 최신 게임의 초기 트렌드 리뷰도 수집
 ```
 
 ## 다음 구현 작업
@@ -200,7 +181,6 @@ SteamSpy 후보 10000개
 아직 필요한 전처리 작업:
 
 ```text
-release_date_text 파싱
 timestamp_created를 날짜로 변환
 days_since_release 계산
 reviews_7d, positive_rate_7d 생성
