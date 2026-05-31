@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Steam 출시 성공 예측 UX 설계</title>
+<style>
+:root {
+  --ink: #172033;
+  --muted: #5f6878;
+  --line: #d9dee8;
+  --paper: #f6f7fb;
+  --white: #ffffff;
+  --teal: #087f8c;
+  --green: #2f855a;
+  --blue: #2b6cb0;
+  --red: #c2410c;
+  --yellow: #b7791f;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Arial, "Noto Sans KR", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  line-height: 1.55;
+}
+header {
+  background: #102033;
+  color: #ffffff;
+  padding: 36px 28px 30px;
+}
+header h1 {
+  margin: 0 0 10px;
+  font-size: 32px;
+  letter-spacing: 0;
+}
+header p {
+  margin: 0;
+  max-width: 980px;
+  color: #d8e0ec;
+  font-size: 17px;
+}
+main {
+  width: min(1180px, calc(100% - 32px));
+  margin: 24px auto 42px;
+}
+section {
+  margin: 22px 0;
+}
+h2 {
+  font-size: 22px;
+  margin: 0 0 14px;
+}
+h3 {
+  font-size: 17px;
+  margin: 0 0 8px;
+}
+.grid {
+  display: grid;
+  gap: 14px;
+}
+.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+}
+.card p { margin: 0; color: var(--muted); }
+.badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 10px;
+}
+.b-blue { background: var(--blue); }
+.b-green { background: var(--green); }
+.b-teal { background: var(--teal); }
+.b-red { background: var(--red); }
+.b-yellow { background: var(--yellow); }
+.split {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 16px;
+  align-items: stretch;
+}
+.flow {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+.step {
+  position: relative;
+  min-height: 132px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+.step strong {
+  display: block;
+  margin-bottom: 8px;
+}
+.step span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.step:not(:last-child)::after {
+  content: ">";
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-weight: 700;
+}
+.lane {
+  display: grid;
+  grid-template-columns: 190px 1fr 1fr 1fr;
+  gap: 10px;
+  align-items: stretch;
+}
+.lane-head {
+  background: #172033;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 14px;
+  font-weight: 700;
+}
+.lane-box {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+.lane-box small {
+  display: block;
+  color: var(--muted);
+  margin-top: 8px;
+}
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.metric {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+.metric .num {
+  display: block;
+  font-size: 23px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.metric .label {
+  color: var(--muted);
+  font-size: 13px;
+}
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.compare th, .compare td {
+  border-bottom: 1px solid var(--line);
+  padding: 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.compare th {
+  background: #edf2f7;
+}
+.compare tr:last-child td { border-bottom: 0; }
+.bar {
+  height: 10px;
+  background: #dbe4ef;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--teal);
+}
+.note {
+  border-left: 4px solid var(--teal);
+  padding: 12px 14px;
+  background: #edfafa;
+  color: #214046;
+}
+.risk {
+  border-left: 4px solid var(--red);
+  background: #fff7ed;
+}
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pill {
+  border: 1px solid var(--line);
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.legend .card {
+  min-height: 118px;
+}
+.source-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.source {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+.source strong {
+  display: block;
+  margin-bottom: 4px;
+}
+.source small {
+  color: var(--muted);
+}
+footer {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 20px 28px 32px;
+  text-align: center;
+}
+@media (max-width: 980px) {
+  .cols-2, .cols-3, .split, .legend { grid-template-columns: 1fr; }
+  .flow { grid-template-columns: 1fr; }
+  .step:not(:last-child)::after { display: none; }
+  .lane { grid-template-columns: 1fr; }
+  .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .source-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  header { padding: 28px 18px 24px; }
+  header h1 { font-size: 25px; }
+  main { width: min(100% - 20px, 1180px); }
+  .metric-grid { grid-template-columns: 1fr; }
+  .source-list { grid-template-columns: 1fr; }
+  .compare { font-size: 14px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Steam 90일 성공 예측 및 출시 전략 UX 설계</h1>
+  <p>예측 모델은 출시 초기 리뷰 타임라인을 중심으로 만들고, 판매량 추정치·평론가 점수·웹진 언급량·동접자는 현재 성과를 비교하는 보조 지표로 분리한다.</p>
+</header>
+
+<main>
+  <section class="split">
+    <div class="card">
+      <span class="badge b-blue">Prediction</span>
+      <h2>예측의 기준</h2>
+      <p>출시 전 또는 출시 후 7일 이내에 알 수 있는 정보만 모델 입력으로 사용한다. 목표값은 출시 후 90일 리뷰 수와 긍정률을 기반으로 만든 `success_90d`다.</p>
+      <div class="bar"><i style="width: 72%"></i></div>
+    </div>
+    <div class="card">
+      <span class="badge b-yellow">Analysis</span>
+      <h2>현재 성과 분석의 기준</h2>
+      <p>SteamSpy, Metacritic/OpenCritic, 웹진 언급량, 현재 동접자는 과거 시점 값을 안정적으로 얻기 어렵기 때문에 예측 입력이 아니라 비교와 해석에 사용한다.</p>
+      <div class="bar"><i style="width: 58%"></i></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>사용자 경험 흐름</h2>
+    <div class="flow">
+      <div class="step"><strong>1. 시장 보기</strong><span>요즘 잘 나가는 장르, 태그, 리뷰 증가 게임을 확인한다.</span></div>
+      <div class="step"><strong>2. 내 게임 입력</strong><span>장르, 태그, 가격, 언어, 플랫폼, 기능을 넣는다.</span></div>
+      <div class="step"><strong>3. 유사 게임</strong><span>비슷한 게임 10~30개와 경쟁 구도를 본다.</span></div>
+      <div class="step"><strong>4. 90일 예측</strong><span>출시 초기 기준으로 90일 성공 가능성을 확인한다.</span></div>
+      <div class="step"><strong>5. 성과 비교</strong><span>판매 추정, 평론가 점수, 웹진, 동접자를 비교한다.</span></div>
+      <div class="step"><strong>6. 리뷰 피드백</strong><span>유사 게임의 긍정/부정 리뷰 키워드를 본다.</span></div>
+      <div class="step"><strong>7. 우선순위</strong><span>가격, 언어, 기능, 최적화 중 먼저 강화할 것을 정한다.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>개발자 경험 파이프라인</h2>
+    <div class="lane">
+      <div class="lane-head">데이터 수집</div>
+      <div class="lane-box">Steam 검색 크롤링<small>appid 후보 확보</small></div>
+      <div class="lane-box">Steam appdetails API<small>가격, 장르, 언어, 플랫폼, 기능</small></div>
+      <div class="lane-box">Steam Reviews API<small>리뷰 텍스트, timestamp, voted_up</small></div>
+    </div>
+    <div class="lane" style="margin-top:10px">
+      <div class="lane-head">시간 기준 정제</div>
+      <div class="lane-box">7일 지표<small>초기 리뷰 수, 초기 긍정률, 증가 속도</small></div>
+      <div class="lane-box">30일 지표<small>중간 반응 확인용</small></div>
+      <div class="lane-box">90일 지표<small>success_90d 라벨 생성</small></div>
+    </div>
+    <div class="lane" style="margin-top:10px">
+      <div class="lane-head">모델과 분석</div>
+      <div class="lane-box">성공 예측 모델<small>X: 상점 정보 + 7일 리뷰, y: 90일 성공</small></div>
+      <div class="lane-box">유사 게임 모델<small>KNN 또는 cosine similarity</small></div>
+      <div class="lane-box">리뷰 키워드 분석<small>TF-IDF, n-gram, 카테고리 매핑</small></div>
+    </div>
+    <div class="lane" style="margin-top:10px">
+      <div class="lane-head">보조 성과 지표</div>
+      <div class="lane-box">SteamSpy<small>owners, playtime, sales proxy</small></div>
+      <div class="lane-box">Metacritic/OpenCritic<small>critic score 비교</small></div>
+      <div class="lane-box">웹진/동접자<small>attention score, activity score</small></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>데이터 역할 구분</h2>
+    <table class="compare">
+      <thead>
+        <tr>
+          <th>데이터</th>
+          <th>예측 모델 입력</th>
+          <th>현재 성과 분석</th>
+          <th>주의점</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Steam 상점 정보</td>
+          <td>사용 가능</td>
+          <td>비교 가능</td>
+          <td>현재 상점 상태가 출시 당시와 다를 수 있음</td>
+        </tr>
+        <tr>
+          <td>Steam 리뷰 timestamp</td>
+          <td>핵심 입력</td>
+          <td>핵심 지표</td>
+          <td>7일/30일/90일 타임라인 생성 가능</td>
+        </tr>
+        <tr>
+          <td>SteamSpy owners</td>
+          <td>제한적</td>
+          <td>사용 가능</td>
+          <td>현재 추정치이므로 판매량 proxy로만 사용</td>
+        </tr>
+        <tr>
+          <td>Metacritic/OpenCritic</td>
+          <td>제한적</td>
+          <td>사용 가능</td>
+          <td>결측과 수집 안정성 문제를 고려</td>
+        </tr>
+        <tr>
+          <td>웹진/YouTube 언급량</td>
+          <td>제한적</td>
+          <td>사용 가능</td>
+          <td>검색 결과 기반 proxy라 변동 가능</td>
+        </tr>
+        <tr>
+          <td>현재 동접자</td>
+          <td>사용하지 않음</td>
+          <td>사용 가능</td>
+          <td>현재 순간값이므로 90일 예측 입력으로 부적절</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>얼마나 수집해야 의미가 있나</h2>
+    <table class="compare">
+      <thead>
+        <tr>
+          <th>분석 목적</th>
+          <th>최소 기준</th>
+          <th>권장 기준</th>
+          <th>해석 기준</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>전체 90일 예측 모델</td>
+          <td>유효 게임 300개 이상</td>
+          <td>800~1,500개</td>
+          <td>90일이 지난 게임만 학습에 사용</td>
+        </tr>
+        <tr>
+          <td>장르별 성공률</td>
+          <td>장르별 10개 이상</td>
+          <td>장르별 30개 이상</td>
+          <td>10개 미만 장르는 화면에서 경고</td>
+        </tr>
+        <tr>
+          <td>유사 게임 추천</td>
+          <td>후보군 300개 이상</td>
+          <td>1,000개 이상</td>
+          <td>장르/태그 다양성이 중요</td>
+        </tr>
+        <tr>
+          <td>성공작/실패작 평균 비교</td>
+          <td>각 그룹 5개 이상</td>
+          <td>각 그룹 15개 이상</td>
+          <td>한쪽 그룹이 작으면 비교 신뢰도 낮음</td>
+        </tr>
+        <tr>
+          <td>리뷰 키워드 피드백</td>
+          <td>그룹별 리뷰 100개 이상</td>
+          <td>그룹별 리뷰 500개 이상</td>
+          <td>짧은 리뷰와 다국어 노이즈 제거 필요</td>
+        </tr>
+        <tr>
+          <td>웹진 관심도 비교</td>
+          <td>유사 게임군 100개 이상</td>
+          <td>상위 후보군 중심 수집</td>
+          <td>절대 인기보다 상대 노출도 proxy</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>현실 가능성과 예상 시간</h2>
+    <div class="grid cols-3">
+      <div class="card">
+        <span class="badge b-green">MVP</span>
+        <h3>1차 구현</h3>
+        <p>Steam 검색, appdetails, 리뷰 요약, 제한된 리뷰 타임라인을 300~500개 게임에 수집한다. 예상 시간은 수집 실행 기준 1~3시간, 구현은 1~2일 범위다.</p>
+      </div>
+      <div class="card">
+        <span class="badge b-blue">Model</span>
+        <h3>2차 모델 개선</h3>
+        <p>1,000개 이상 게임으로 늘리고 게임당 최대 500~1,000개 리뷰를 수집해 7일/30일/90일 지표를 만든다. 수집은 반나절, 정제와 검증은 1~2일이 필요하다.</p>
+      </div>
+      <div class="card">
+        <span class="badge b-yellow">Expansion</span>
+        <h3>3차 확장</h3>
+        <p>SteamSpy, 웹진 관심도, 현재 동접자를 추가한다. 웹진은 모든 게임이 아니라 유사 게임 후보와 상위 게임에 제한해 20~60분 단위 배치로 돌린다.</p>
+      </div>
+    </div>
+    <div class="note" style="margin-top:12px">Metacritic/OpenCritic 직접 수집은 매칭과 안정성 문제가 있어 핵심 기능이 아니라 선택 확장으로 둔다.</div>
+  </section>
+
+  <section>
+    <h2>구현 우선순위</h2>
+    <div class="source-list">
+      <div class="source"><strong>1순위</strong><small>Steam 상점 정보 + 리뷰 타임라인 + success_90d</small></div>
+      <div class="source"><strong>2순위</strong><small>90일 성공 예측 모델 + 유사 게임 추천</small></div>
+      <div class="source"><strong>3순위</strong><small>성공작/실패작 평균 비교 + 리뷰 키워드</small></div>
+      <div class="source"><strong>4순위</strong><small>SteamSpy, 웹진 관심도, 동접자 보조 지표</small></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>웹진 관심도는 이렇게 조사한다</h2>
+    <div class="grid cols-3">
+      <div class="card">
+        <span class="badge b-teal">Collect</span>
+        <h3>1. 고정 도메인 검색</h3>
+        <p>IGN, PC Gamer, GameSpot, Rock Paper Shotgun처럼 도메인을 정한 뒤 `"게임명" review site:ign.com` 형태로 검색한다. 사이트별 직접 크롤링보다 재현성과 유지보수가 낫다.</p>
+      </div>
+      <div class="card">
+        <span class="badge b-blue">Clean</span>
+        <h3>2. 후보 기사 필터링</h3>
+        <p>제목 또는 snippet에 게임명이 있는 결과만 남기고, 중복 URL·상점 페이지·동명이인 결과를 제거한다. review, preview, news, guide 유형을 구분한다.</p>
+      </div>
+      <div class="card">
+        <span class="badge b-yellow">Score</span>
+        <h3>3. 가중 점수화</h3>
+        <p>기사 수를 그대로 쓰지 않고 도메인 신뢰도, 기사 유형, 검색 순위를 곱해 `webzine_weighted_score`를 만든다.</p>
+      </div>
+    </div>
+    <div class="source-list" style="margin-top:12px">
+      <div class="source"><strong>웹진</strong><small>ign.com, pcgamer.com, gamespot.com, rockpapershotgun.com</small></div>
+      <div class="source"><strong>쿼리</strong><small>"Game Name" review site:domain.com</small></div>
+      <div class="source"><strong>저장</strong><small>title, url, snippet, domain, rank, query_type</small></div>
+      <div class="source"><strong>출력</strong><small>관심도 등급, 상위 기사, 유사 성공작 대비 차이</small></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>웹진 점수를 사용자에게 보여주는 방식</h2>
+    <table class="compare">
+      <thead>
+        <tr>
+          <th>화면 요소</th>
+          <th>보여줄 내용</th>
+          <th>사용자 해석</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>외부 매체 관심도</td>
+          <td>낮음 / 보통 / 높음</td>
+          <td>유사 게임 대비 웹진 노출이 어느 정도인지 빠르게 확인</td>
+        </tr>
+        <tr>
+          <td>근거 기사</td>
+          <td>상위 3~5개 기사 제목, 매체, 유형</td>
+          <td>단순 점수가 아니라 어떤 매체에서 어떤 맥락으로 다뤘는지 확인</td>
+        </tr>
+        <tr>
+          <td>유사 성공작 평균</td>
+          <td>review 기사 수, preview 기사 수, 가중 점수</td>
+          <td>내 게임의 홍보/매체 노출이 성공작 패턴과 가까운지 비교</td>
+        </tr>
+        <tr>
+          <td>추천 액션</td>
+          <td>프레스킷, 데모, 트레일러, 웹진 outreach</td>
+          <td>품질 개선이 아니라 노출 전략의 우선순위를 판단</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>사용자에게 보여줄 핵심 화면</h2>
+    <div class="metric-grid">
+      <div class="metric"><span class="num">62%</span><span class="label">90일 성공 가능성</span></div>
+      <div class="metric"><span class="num">12개</span><span class="label">유사 성공작 평균 언어 수</span></div>
+      <div class="metric"><span class="num">78%</span><span class="label">유사 성공작 컨트롤러 지원률</span></div>
+      <div class="metric"><span class="num">중간</span><span class="label">판매량 추정 비교</span></div>
+      <div class="metric"><span class="num">낮음</span><span class="label">외부 관심도</span></div>
+    </div>
+  </section>
+
+  <section class="grid cols-2">
+    <div class="card">
+      <span class="badge b-green">Similar Winners</span>
+      <h2>유사 성공작 평균</h2>
+      <table class="compare">
+        <tbody>
+          <tr><td>가격</td><td>$19.99</td></tr>
+          <tr><td>지원 언어</td><td>12개</td></tr>
+          <tr><td>컨트롤러 지원률</td><td>78%</td></tr>
+          <tr><td>긍정 리뷰 키워드</td><td>combat, story, replayability</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <span class="badge b-red">Similar Risks</span>
+      <h2>유사 실패작 평균</h2>
+      <table class="compare">
+        <tbody>
+          <tr><td>가격</td><td>$27.99</td></tr>
+          <tr><td>지원 언어</td><td>5개</td></tr>
+          <tr><td>컨트롤러 지원률</td><td>31%</td></tr>
+          <tr><td>부정 리뷰 키워드</td><td>bug, optimization, repetitive</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="legend">
+    <div class="card">
+      <span class="badge b-teal">Feedback</span>
+      <h2>리뷰 기반 피드백</h2>
+      <p>AI가 임의로 조언하는 것이 아니라, 유사 게임 리뷰에서 반복적으로 등장한 불만과 칭찬을 정리한다.</p>
+      <div class="pill-row" style="margin-top:14px">
+        <span class="pill">최적화</span>
+        <span class="pill">버그</span>
+        <span class="pill">반복성</span>
+        <span class="pill">조작감</span>
+        <span class="pill">밸런스</span>
+      </div>
+    </div>
+    <div class="card">
+      <span class="badge b-yellow">Decision</span>
+      <h2>강화 우선순위</h2>
+      <p>유사 성공작 평균과 내 게임 입력값의 차이를 기준으로 가격, 언어, 컨트롤러, 태그, 최적화 중 먼저 손볼 항목을 제안한다.</p>
+      <div class="note risk" style="margin-top:14px">예측 모델의 결과와 현재 성과 지표를 섞지 않고, 각각의 역할을 분리해서 보여준다.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>최종 경험 문장</h2>
+    <div class="note">
+      Steam 출시 초기 데이터를 기반으로 90일 성공 가능성을 예측하고, 유사 게임의 성공/실패 패턴과 리뷰 피드백을 함께 보여줘 개발자가 출시 전략을 조정할 수 있게 한다.
+    </div>
+  </section>
+</main>
+
+<footer>
+  Generated for the Steam launch success predictor project. Prediction uses early review timeline data; current market indicators are used for comparison and explanation.
+</footer>
+</body>
+</html>

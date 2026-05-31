@@ -4,6 +4,8 @@
 - `AGENTS.md`: 에이전트 작업 전 필수 규칙
 - `README.md`: 프로젝트 목적, 데이터 계획, 성공 기준
 - `docs/MANUAL.md`: 실행 방법과 산출물 위치
+- `docs/DEVELOPER_AND_USER_EXPERIENCE.md`: 개발자 경험과 사용자 경험 설계 정리
+- `docs/TEAM_PROJECT_PLAN.md`: 팀 일정, 역할, 단계별 실행 계획
 
 ## 주요 경로
 - `src/steam_success/`: 크롤링, 전처리, 피처, 모델링, 시각화, 리포트 생성 코드
@@ -12,6 +14,7 @@
 - `data/processed/`: 모델 학습용 데이터
 - `reports/`: CSV/JSON 평가 결과, 결론 Markdown, HTML 리포트
 - `reports/figures/`: HTML에 포함되는 최신 PNG 시각화
+- `reports/experience_scenario.html`: 사용자 경험 중심 시각화 문서
 - `models/`: 학습된 모델 파일
 - `docs/`: 프로젝트 설명, 아키텍처, 실행 매뉴얼, 가정/질문, PDF 요약
 
