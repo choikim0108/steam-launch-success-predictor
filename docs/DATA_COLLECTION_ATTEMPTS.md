@@ -114,6 +114,26 @@ label_eligible_90d=0
 중단 후 재실행해도 기존 raw JSON과 CSV를 재사용하므로 이어서 진행 가능하다.
 ```
 
+## 2차 중단: appdetails 429 확인
+
+초기 대량 실행에서 `request_sleep_seconds=0.2` 기준으로 appdetails 429가 많이 발생했다.
+
+```text
+details_rows=1,500
+detail_errors=592
+review_summary_rows=1,500
+review_errors=0
+```
+
+판단:
+
+```text
+review summary API는 정상인데 appdetails API가 더 민감하다.
+실패 row를 완료로 취급하면 데이터 품질이 망가지므로 수집을 중단했다.
+appdetails_for_appids는 실패 row 재시도, 429 backoff, sleep 1.0초 기본값으로 수정했다.
+대량 재시작은 --sleep-seconds 1.0 --max-retries 5 기준으로 진행한다.
+```
+
 ## 2차: 구버전 공식 app list 실패
 
 시도한 URL:
@@ -245,7 +265,8 @@ sleep 1~2초 기준 수십 분 단위 예상
 appdetails:
 후보 100개당 약 1~1.5분
 실측 100개 기준 98.9초
-28,899개 전체 기준 약 8시간 예상
+0.2초 sleep에서는 appdetails 429가 많이 발생했으므로 sleep 1.0초 이상 권장
+28,899개 전체 기준 약 8~16시간 예상
 
 review timeline:
 게임 250개 x 500리뷰: 대략 30~60분 예상

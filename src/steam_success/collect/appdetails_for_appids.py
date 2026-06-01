@@ -48,6 +48,14 @@ def _write_rows(rows_by_appid: dict[int, dict[str, object]], output: Path) -> No
     frame.to_csv(output, index=False)
 
 
+def _detail_complete(row: dict[str, object] | None) -> bool:
+    return bool(row and str(row.get("detail_success", "")).lower() == "true")
+
+
+def _summary_complete(row: dict[str, object] | None) -> bool:
+    return bool(row and str(row.get("review_success", "")).lower() == "true")
+
+
 def _detail_row(appid: int, payload: dict[str, object]) -> dict[str, object]:
     item = payload.get(str(appid), {})
     item = item if isinstance(item, dict) else {}
@@ -106,7 +114,41 @@ def _summary_row(appid: int, payload: dict[str, object]) -> dict[str, object]:
     }
 
 
-def _collect_appdetails(session: requests.Session, raw_dir: Path, appid: int) -> dict[str, object]:
+def _request_json(
+    session: requests.Session,
+    url: str,
+    params: dict[str, object],
+    sleep_seconds: float,
+    max_retries: int,
+) -> dict[str, object]:
+    last_error = ""
+    for attempt in range(max_retries + 1):
+        try:
+            response = session.get(url, params=params, timeout=30)
+            if response.status_code == 429 and attempt < max_retries:
+                wait_seconds = sleep_seconds * (2 ** attempt)
+                print(f"rate_limited url={url} retry={attempt + 1} wait_seconds={wait_seconds:.1f}")
+                time.sleep(wait_seconds)
+                continue
+            response.raise_for_status()
+            return response.json()
+        except Exception as exc:
+            last_error = str(exc)
+            if attempt >= max_retries:
+                break
+            wait_seconds = sleep_seconds * (2 ** attempt)
+            print(f"request_error url={url} retry={attempt + 1} wait_seconds={wait_seconds:.1f} error={last_error}")
+            time.sleep(wait_seconds)
+    raise RuntimeError(last_error)
+
+
+def _collect_appdetails(
+    session: requests.Session,
+    raw_dir: Path,
+    appid: int,
+    sleep_seconds: float,
+    max_retries: int,
+) -> dict[str, object]:
     raw_path = raw_dir / f"appdetails_{appid}.json"
     if raw_path.exists():
         payload = json.loads(raw_path.read_text(encoding="utf-8"))
@@ -114,18 +156,22 @@ def _collect_appdetails(session: requests.Session, raw_dir: Path, appid: int) ->
     url = "https://store.steampowered.com/api/appdetails"
     params = {"appids": appid, "cc": SETTINGS.country, "l": SETTINGS.language}
     try:
-        response = session.get(url, params=params, timeout=30)
-        response.raise_for_status()
-        payload = response.json()
+        payload = _request_json(session, url, params, sleep_seconds, max_retries)
         raw_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        time.sleep(SETTINGS.request_sleep_seconds)
+        time.sleep(sleep_seconds)
         return _detail_row(appid, payload)
     except Exception as exc:
-        time.sleep(SETTINGS.request_sleep_seconds)
+        time.sleep(sleep_seconds)
         return {"appid": appid, "detail_success": False, "detail_error": str(exc)}
 
 
-def _collect_review_summary(session: requests.Session, raw_dir: Path, appid: int) -> dict[str, object]:
+def _collect_review_summary(
+    session: requests.Session,
+    raw_dir: Path,
+    appid: int,
+    sleep_seconds: float,
+    max_retries: int,
+) -> dict[str, object]:
     raw_path = raw_dir / f"review_summary_{appid}.json"
     if raw_path.exists():
         payload = json.loads(raw_path.read_text(encoding="utf-8"))
@@ -133,18 +179,23 @@ def _collect_review_summary(session: requests.Session, raw_dir: Path, appid: int
     url = f"https://store.steampowered.com/appreviews/{appid}"
     params = {"json": 1, "filter": "summary", "language": "all", "purchase_type": "all", "num_per_page": 0}
     try:
-        response = session.get(url, params=params, timeout=30)
-        response.raise_for_status()
-        payload = response.json()
+        payload = _request_json(session, url, params, sleep_seconds, max_retries)
         raw_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        time.sleep(SETTINGS.request_sleep_seconds)
+        time.sleep(sleep_seconds)
         return _summary_row(appid, payload)
     except Exception as exc:
-        time.sleep(SETTINGS.request_sleep_seconds)
+        time.sleep(sleep_seconds)
         return {"appid": appid, "review_success": False, "review_error": str(exc)}
 
 
-def run(root: Path, input_csv: Path, max_apps: int | None, flush_every: int) -> None:
+def run(
+    root: Path,
+    input_csv: Path,
+    max_apps: int | None,
+    flush_every: int,
+    sleep_seconds: float,
+    max_retries: int,
+) -> None:
     paths = ProjectPaths.from_root(root)
     appids = _load_appids(input_csv, max_apps)
     details_output = paths.data_raw / "steam_appdetails.csv"
@@ -154,10 +205,10 @@ def run(root: Path, input_csv: Path, max_apps: int | None, flush_every: int) -> 
     session = _session()
 
     for index, appid in enumerate(appids, start=1):
-        if appid not in detail_rows:
-            detail_rows[appid] = _collect_appdetails(session, paths.data_raw, appid)
-        if appid not in summary_rows:
-            summary_rows[appid] = _collect_review_summary(session, paths.data_raw, appid)
+        if not _detail_complete(detail_rows.get(appid)):
+            detail_rows[appid] = _collect_appdetails(session, paths.data_raw, appid, sleep_seconds, max_retries)
+        if not _summary_complete(summary_rows.get(appid)):
+            summary_rows[appid] = _collect_review_summary(session, paths.data_raw, appid, sleep_seconds, max_retries)
         if index % flush_every == 0:
             _write_rows(detail_rows, details_output)
             _write_rows(summary_rows, summaries_output)
@@ -168,6 +219,8 @@ def run(root: Path, input_csv: Path, max_apps: int | None, flush_every: int) -> 
     print(f"appids={len(appids)}")
     print(f"details_rows={len(detail_rows)}")
     print(f"review_summary_rows={len(summary_rows)}")
+    print(f"detail_success_rows={sum(1 for row in detail_rows.values() if _detail_complete(row))}")
+    print(f"review_success_rows={sum(1 for row in summary_rows.values() if _summary_complete(row))}")
     print(f"details_output={details_output}")
     print(f"review_summaries_output={summaries_output}")
 
@@ -178,6 +231,8 @@ def main() -> None:
     parser.add_argument("--input-csv", type=Path, default=None)
     parser.add_argument("--max-apps", type=int, default=None)
     parser.add_argument("--flush-every", type=int, default=100)
+    parser.add_argument("--sleep-seconds", type=float, default=1.0)
+    parser.add_argument("--max-retries", type=int, default=5)
     args = parser.parse_args()
     root = args.root.resolve()
     if args.input_csv is not None:
@@ -192,7 +247,7 @@ def main() -> None:
             input_csv = official_csv
         else:
             input_csv = steamspy_csv
-    run(root, input_csv, args.max_apps, args.flush_every)
+    run(root, input_csv, args.max_apps, args.flush_every, args.sleep_seconds, args.max_retries)
 
 
 if __name__ == "__main__":
