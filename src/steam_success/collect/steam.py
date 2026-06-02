@@ -90,16 +90,20 @@ def fetch_appdetails(appids: Iterable[int], raw_dir: Path, config: CrawlConfig) 
     session = _session()
     rows: list[dict[str, object]] = []
     for appid in appids:
+        cached = raw_dir / f"appdetails_{appid}.json"
         url = "https://store.steampowered.com/api/appdetails"
         params = {"appids": appid, "cc": config.country, "l": config.language}
         try:
-            response = session.get(url, params=params, timeout=30)
-            response.raise_for_status()
-            payload = response.json()
+            if cached.exists():
+                payload = json.loads(cached.read_text(encoding="utf-8"))
+            else:
+                response = session.get(url, params=params, timeout=30)
+                response.raise_for_status()
+                payload = response.json()
         except Exception as exc:
             rows.append({"appid": appid, "detail_success": False, "detail_error": str(exc)})
             continue
-        (raw_dir / f"appdetails_{appid}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        cached.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         item = payload.get(str(appid), {})
         data = item.get("data") or {}
         price = data.get("price_overview") or {}
@@ -117,6 +121,7 @@ def fetch_appdetails(appids: Iterable[int], raw_dir: Path, config: CrawlConfig) 
             "discount_percent": price.get("discount_percent", 0) if price else 0,
             "developers": ", ".join(data.get("developers") or []),
             "publishers": ", ".join(data.get("publishers") or []),
+            "header_image": data.get("header_image", ""),
             "genres": ", ".join(g.get("description", "") for g in data.get("genres") or []),
             "categories": ", ".join(c.get("description", "") for c in data.get("categories") or []),
             "platform_windows": bool((data.get("platforms") or {}).get("windows", False)),
@@ -134,16 +139,20 @@ def fetch_review_summaries(appids: Iterable[int], raw_dir: Path, config: CrawlCo
     session = _session()
     rows: list[dict[str, object]] = []
     for appid in appids:
+        cached = raw_dir / f"review_summary_{appid}.json"
         url = f"https://store.steampowered.com/appreviews/{appid}"
         params = {"json": 1, "filter": "summary", "language": "all", "purchase_type": "all", "num_per_page": 0}
         try:
-            response = session.get(url, params=params, timeout=30)
-            response.raise_for_status()
-            payload = response.json()
+            if cached.exists():
+                payload = json.loads(cached.read_text(encoding="utf-8"))
+            else:
+                response = session.get(url, params=params, timeout=30)
+                response.raise_for_status()
+                payload = response.json()
         except Exception as exc:
             rows.append({"appid": appid, "review_success": False, "review_error": str(exc)})
             continue
-        (raw_dir / f"review_summary_{appid}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        cached.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         summary = payload.get("query_summary") or {}
         total = int(summary.get("total_reviews") or 0)
         positive = int(summary.get("total_positive") or 0)
