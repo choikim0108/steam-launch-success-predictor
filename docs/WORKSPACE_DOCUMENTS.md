@@ -6,6 +6,8 @@
 - `docs/TEAM_PROJECT_PLAN.md`: 팀 일정, 역할, 단계별 실행 계획
 - `docs/DATA_COLLECTION_RUNBOOK.md`: 데이터 수집 실행 순서
 - `docs/DATA_COLLECTION_ATTEMPTS.md`: 1차~3차 수집 시도 결과와 병목 보고
+- `docs/DATA_COLLECTION_STRUCTURE_KO.md`: 현재 수집 중인 데이터 구조와 각 컬럼 한글 설명
+- `docs/DATA_COLLECTION_CODE_FLOW_KO.md`: 데이터 수집 명령과 내부 코드 흐름 설명
 - `docs/ARCHITECTURE.md`: 90일 성공 예측 파이프라인 구조
 - `docs/MANUAL.md`: 명령어와 산출물 위치
 

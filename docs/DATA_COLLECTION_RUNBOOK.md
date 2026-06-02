@@ -101,27 +101,30 @@ label_eligible_90d=true인 게임만 success_90d 학습 라벨을 만들 수 있
 현재 기준일 2026-06-01에서 label 가능 기준은 release_date <= 2026-03-03이다.
 ```
 
-## 리뷰 timestamp 타임라인
+## 리뷰 시간 지표
 
-90일 성공 라벨을 만들려면 현재 리뷰 요약만으로는 부족하다. 리뷰별 `timestamp_created`와 `voted_up`을 수집해야 출시 후 7일/30일/90일 지표를 계산할 수 있다.
-
-```powershell
-$env:PYTHONPATH="src"
-python -m steam_success.collect.review_timeline --input-csv data/interim/game_candidates_2025_2026.csv --max-reviews-per-game 500
-```
-
-특정 appid만 테스트:
+90일 성공 라벨을 만들려면 현재 리뷰 요약만으로는 부족하다. 우선 Steam `appreviewhistogram`의 날짜별 긍정/부정 리뷰 집계를 수집해 출시 후 7일/30일/90일 지표를 만든다. 이 경로가 90일 라벨용 메인이다.
 
 ```powershell
 $env:PYTHONPATH="src"
-python -m steam_success.collect.review_timeline --appid 1903340 --max-reviews-per-game 100
+python -m steam_success.collect.review_histogram --input-csv data/interim/game_candidates_2025_2026.csv --only-label-eligible-90d --flush-every 100 --sleep-seconds 0.5
+python -m steam_success.preprocess.review_windows
 ```
 
 생성 파일:
 
 ```text
-data/raw/steam_review_timeline.csv
-data/raw/review_timeline/review_timeline_<appid>_page_<n>.json
+data/raw/steam_review_histogram.csv
+data/raw/steam_review_histogram_status.csv
+data/raw/review_histogram/review_histogram_<appid>.json
+data/interim/game_review_windows_2025_2026.csv
+```
+
+리뷰 원문과 개별 timestamp가 필요할 때만 보조로 `review_timeline`을 제한 실행한다. 전체 2025~2026 게임에 무작정 실행하지 않는다.
+
+```powershell
+$env:PYTHONPATH="src"
+python -m steam_success.collect.review_timeline --appid 1903340 --max-reviews-per-game 100
 ```
 
 ## 검증 축: 공식 API / SteamSpy / SteamDB
