@@ -18,7 +18,6 @@
 - `data/processed/`: 모델 학습용 데이터
 - `reports/`: CSV/JSON 평가 결과, 결론 Markdown, HTML 리포트
 - `reports/figures/`: HTML에 포함되는 최신 PNG 시각화
-- `reports/experience_scenario.html`: 사용자 경험 중심 시각화 문서
 - `models/`: 학습된 모델 파일
 - `docs/`: 핵심 실행 문서
 - `docs/reference/`: 참고용 상세 문서, 과거 가이드, 질문 목록, PDF 요약
