@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import pandas as pd
+from typing import cast
 
-FEATURE_COLUMNS = [
+PREDICTION_FEATURE_COLUMNS = [
     "price_final_usd",
     "is_free",
     "required_age",
     "discount_percent",
-    "metacritic_score",
     "supported_language_count",
     "genre_count",
     "category_count",
@@ -18,11 +18,9 @@ FEATURE_COLUMNS = [
     "platform_windows",
     "platform_mac",
     "platform_linux",
-    "youtube_mentions",
-    "webzine_mentions",
-    "blog_mentions",
-    "external_attention_score",
 ]
+
+FEATURE_COLUMNS = PREDICTION_FEATURE_COLUMNS
 
 
 def make_xy(dataset: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
@@ -39,4 +37,4 @@ def make_xy(dataset: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
             x[col] = x[col].astype(int)
     x = x.fillna(0)
     y = dataset["success"].astype(int)
-    return x, y
+    return cast(pd.DataFrame, x), cast(pd.Series, y)

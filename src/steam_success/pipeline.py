@@ -9,6 +9,7 @@ from steam_success.collect.external_web import collect_external_web_signals
 from steam_success.collect.steam import collect_all, fetch_review_texts
 from steam_success.config import ProjectPaths, SETTINGS
 from steam_success.models.train import train_and_evaluate
+from steam_success.market_report import write_market_insight_site
 from steam_success.preprocess.dataset import build_modeling_dataset
 from steam_success.reporting import summarize_pdf, write_architecture_doc, write_assumptions_doc, write_manual_doc, write_run_summary, write_workspace_docs_index
 from steam_success.review_analysis import analyze_review_topics, select_review_games
@@ -46,6 +47,7 @@ def run(root: Path, max_apps: int | None = None) -> None:
     write_workspace_docs_index(root, paths.docs)
     write_run_summary(paths.reports, dataset, result, chart_paths)
     write_interactive_report(paths.reports, dataset)
+    write_market_insight_site(paths.reports, dataset, pd.DataFrame(review_analysis.get("summary", [])), feature_importance)
     print("Steam success prediction pipeline completed")
     success_count = len(dataset[dataset["success"] == 1])
     print(f"valid_games={len(dataset)} success={success_count} best_model={result['best_model']}")
