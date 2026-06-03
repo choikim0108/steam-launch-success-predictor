@@ -8,9 +8,11 @@ import pandas as pd
 from steam_success.market_insight import build_market_insight_payload
 
 
-def write_market_insight_site(reports_dir: Path, dataset: pd.DataFrame, review_topics: pd.DataFrame | None = None, feature_importance: pd.DataFrame | None = None) -> Path:
+def write_market_insight_site(reports_dir: Path, dataset: pd.DataFrame, review_topics: pd.DataFrame | None = None, feature_importance: pd.DataFrame | None = None, review_samples: pd.DataFrame | None = None) -> Path:
     reports_dir.mkdir(parents=True, exist_ok=True)
-    payload = build_market_insight_payload(dataset, review_topics, feature_importance)
+    if review_samples is None and (reports_dir / "review_samples.csv").exists():
+        review_samples = pd.read_csv(reports_dir / "review_samples.csv")
+    payload = build_market_insight_payload(dataset, review_topics, feature_importance, review_samples)
     data_json = _script_json(payload)
     output = reports_dir / "market_insight_site.html"
     output.write_text(HTML_TEMPLATE.replace("__PAYLOAD__", data_json), encoding="utf-8")
@@ -96,7 +98,7 @@ a { color:var(--blue); }
 </header>
 <main>
 <div class="tab-shell"><nav class="tabs" aria-label="시장 인사이트 탭"><button class="tab-button active" data-tab="overview" type="button">시장 스냅샷</button><button class="tab-button" data-tab="planner" type="button">내 게임 진단</button><button class="tab-button" data-tab="risks" type="button">성공 레퍼런스</button><button class="tab-button" data-tab="evidence" type="button">판단 기준</button></nav></div>
-<section class="tab-panel active" id="tab-overview"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 먼저 전체 시장 규모, 성공 표본 비율, 장르/태그 방향을 보고 기획 후보를 좁힙니다.</p></div><section class="grid cols-3" id="summary"></section><section class="card"><h2>기획 인사이트 추천 엔진</h2><p class="muted" id="guidancePurpose"></p><div class="grid cols-3" id="guidanceCards"></div><h3>출시 전 체크리스트</h3><ul class="checklist" id="guidanceChecklist"></ul></section><section class="grid cols-2"><div class="card"><h2>장르 트렌드</h2><div id="genreTrends"></div></div><div class="card"><h2>태그/기능 트렌드</h2><div id="tagTrends"></div></div></section></section>
+<section class="tab-panel active" id="tab-overview"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 먼저 전체 시장 규모, 성공 표본 비율, 장르/태그 방향을 보고 기획 후보를 좁힙니다.</p></div><section class="grid cols-3" id="summary"></section><section class="card"><h2>기획 인사이트 추천 엔진</h2><p class="muted" id="guidancePurpose"></p><div class="grid cols-3" id="guidanceCards"></div><h3>출시 전 체크리스트</h3><ul class="checklist" id="guidanceChecklist"></ul></section><section class="card"><h2>의미 모델·추천 신뢰도</h2><div id="semanticModel"></div></section><section class="grid cols-2"><div class="card"><h2>장르 트렌드</h2><div id="genreTrends"></div></div><div class="card"><h2>태그/기능 트렌드</h2><div id="tagTrends"></div></div></section></section>
 <section class="tab-panel" id="tab-planner"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 만들려는 장르/태그를 선택하고, 성공 참고 게임과 실패/주의 참고 게임을 같이 비교합니다.</p></div><section class="card"><h2>내 게임 기획 입력</h2><p class="muted">선택 전에는 전체 시장 평균을 기준으로 표시합니다. 가격/언어 수/출시월은 일부러 비워두어 사용자가 직접 입력한 값만 반영합니다.</p><div id="inputs"></div><div id="estimate" class="card"></div><div id="tagComboRecommendations" class="card combo-card"></div></section><section class="card"><h2>선택 조건 기반 참고 게임</h2><div id="selectedGames"></div></section></section>
 <section class="tab-panel" id="tab-evidence"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 모델이 어떤 요소를 중요하게 봤는지 확인하고 가격·언어·플랫폼 전략을 조정합니다.</p></div><section class="grid cols-2"><div class="card"><h2>모델 근거 feature importance</h2><div id="importance"></div></div><div class="card"><h2>성공/중박/실패 기준</h2><ul class="criteria-list"><li>성공: 65% 이상</li><li>중박: 35% 이상 65% 미만</li><li>실패: 35% 미만</li></ul><div id="comparison"></div></div></section></section>
 <section class="tab-panel" id="tab-risks"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 비슷한 실패 사례와 부정 리뷰 키워드를 보고 출시 전 리스크 체크리스트를 만듭니다.</p></div><section class="grid cols-2"><div class="card"><h2>유사 성공작</h2><div id="successGames"></div></div><div class="card"><h2>유사 실패/위험 사례</h2><div id="riskGames"></div></div></section><section class="grid cols-2"><div class="card"><h2>개발 주의점</h2><div id="cautions"></div></div><div class="card"><h2>외부 데이터 상태</h2><div id="external"></div></div></section></section>
@@ -122,6 +124,7 @@ function renderSummary() {
   clear(target);
   [
     ['분석 게임 수', `${num(s.game_count)}개`, '수집·정제 후 HTML에 반영된 표본'],
+    ['분석 태그 수', `${num(s.analyzed_tag_count)}개`, 'Steam 태그/기능 기반 세부 시장 축'],
     ['성공 표본 비율', pct(s.success_rate), '장르별 상대 성공 기준 기반'],
     ['평균 예측 확률', pct(s.average_prediction), '모델 1 결과 평균']
   ].forEach(([title, metric, desc]) => {
@@ -147,6 +150,18 @@ function renderGuidance() {
   const checklist = document.getElementById('guidanceChecklist');
   clear(checklist);
   (guidance.checklist || []).forEach(item => add(checklist, node('li', item)));
+}
+function renderSemanticModel() {
+  const target = document.getElementById('semanticModel');
+  clear(target);
+  const semantic = payload.semantic_model || {};
+  add(target, node('p', `전체 추천 신뢰도: ${semantic.confidence?.label || '낮음'} · ${semantic.confidence?.basis || '데이터 보유량 기준'}`, 'muted'));
+  const layout = add(target, node('div', '', 'grid cols-3'));
+  [['비즈니스 모델', semantic.business_models], ['출시 상태', semantic.lifecycles], ['제작 맥락', semantic.production_contexts]].forEach(([title, rows]) => {
+    const card = add(layout, node('div', '', 'card'));
+    add(card, node('b', title));
+    (rows || []).slice(0, 4).forEach(row => add(card, node('p', `${row.segment}: 표본 ${num(row.game_count)}개 · 평균 예측 ${pct(row.average_prediction)} · 성공률 ${pct(row.success_rate)}`, 'muted')));
+  });
 }
 function heading(parent, text) { add(parent, node('h3', text)); }
 function renderImpactChips(parent, type, values) {
@@ -178,10 +193,17 @@ function renderInputs() {
   heading(target, '메인 장르/세부 장르');
   renderImpactChips(target, 'genres', inputs.genres || []);
   if (!(inputs.genres || []).length) add(target, node('p', '장르 데이터 부족', 'muted'));
+  heading(target, '시장/출시 전략 태그');
+  renderImpactChips(target, 'strategy_tags', inputs.strategy_tags || []);
+  if (!(inputs.strategy_tags || []).length) add(target, node('p', '전략 태그 데이터 부족', 'muted'));
   heading(target, 'Steam 태그/기능');
   renderImpactChips(target, 'tags', inputs.tags || []);
   if (!(inputs.tags || []).length) add(target, node('p', '태그 데이터 부족', 'muted'));
   heading(target, '상세 기획');
+  const optimizeButton = add(target, node('button', '선택 조건 최적화', 'ghost-button'));
+  optimizeButton.id = 'maximizePlanButton';
+  optimizeButton.type = 'button';
+  optimizeButton.onclick = optimizePlanningInputs;
   numeric(target, 'price', '가격', '');
   numeric(target, 'languages', '언어 수', '');
   numeric(target, 'month', '출시월', '', '1', '12');
@@ -195,15 +217,19 @@ function checkbox(parent, name, value, labelText) {
   label.appendChild(document.createTextNode(` ${labelText}`));
 }
 function toggleTerm(type, value) {
-  const set = selectedState[type];
+  const set = selectedSet(type);
   if (set.has(value)) set.delete(value); else set.add(value);
   updateInterface();
+}
+function selectedSet(type) {
+  if (!selectedState[type]) selectedState[type] = new Set();
+  return selectedState[type];
 }
 function gameTerms(game) {
   return [...new Set(`${game.genres || ''}, ${game.steam_tags || ''}`.split(',').map(v => v.trim()).filter(Boolean))];
 }
 function selectedTerms(extraType, extraValue) {
-  const terms = [...selectedState.genres, ...selectedState.tags];
+  const terms = [...selectedSet('genres'), ...selectedSet('strategy_tags'), ...selectedSet('tags')];
   if (extraType && extraValue) terms.push(extraValue);
   return terms;
 }
@@ -222,10 +248,13 @@ function gameTagTerms(game) {
   const genres = new Set(gameGenreTerms(game));
   return [...new Set(termsFrom(game.steam_tags).filter(tag => !genres.has(tag)))];
 }
+function gameHasGenreSelection(game, genre) {
+  return gameGenreTerms(game).includes(genre) || gameTagTerms(game).includes(genre);
+}
 function tagComboCandidates() {
   const genres = [...selectedState.genres];
   if (!genres.length) return [];
-  const games = (payload.games || []).filter(game => genres.every(genre => gameGenreTerms(game).includes(genre)));
+  const games = (payload.games || []).filter(game => genres.every(genre => gameHasGenreSelection(game, genre)));
   const combos = new Map();
   games.forEach(game => {
     const tags = gameTagTerms(game).slice(0, 8);
@@ -247,6 +276,26 @@ function tagComboCandidates() {
     .map(row => ({combo:row.combo, sample:row.sample, probability:row.probabilitySum / row.sample, successRate:row.successSum / row.sample}))
     .sort((a, b) => b.probability - a.probability || b.sample - a.sample)
     .slice(0, 8);
+}
+function optimizePlanningInputs() {
+  const baseTerms = selectedTerms();
+  const candidates = matchingGames(baseTerms).length ? matchingGames(baseTerms) : (payload.games || []);
+  const ranked = candidates.slice().sort((a, b) => Number(b.predicted_success_probability || 0) - Number(a.predicted_success_probability || 0)).slice(0, 12);
+  if (!ranked.length) return;
+  const average = (field) => ranked.reduce((sum, game) => sum + Number(game[field] || 0), 0) / ranked.length;
+  document.getElementById('price').value = average('price_final_usd').toFixed(2);
+  document.getElementById('languages').value = Math.max(1, Math.round(average('supported_language_count')));
+  const month = Math.round(average('release_month')) || 10;
+  document.getElementById('month').value = String(Math.max(1, Math.min(12, month)));
+  (payload.developer_inputs.checkbox_fields || []).forEach(field => {
+    const input = document.querySelector(`input[name="${field}"]`);
+    if (input) input.checked = ranked.filter(game => Boolean(game[field])).length >= ranked.length / 2;
+  });
+  const combo = tagComboCandidates()[0];
+  if (combo) {
+    combo.combo.split(' + ').forEach(tag => selectedSet('tags').add(tag));
+  }
+  updateInterface();
 }
 function renderTagComboRecommendations() {
   const target = document.getElementById('tagComboRecommendations');
@@ -327,7 +376,10 @@ function addGameCard(target, game) {
     add(card, node('p', `${game.genres || '장르 없음'} · ${game.steam_tags || '태그 없음'}`, 'muted'));
     add(card, node('span', game.outcome_label, outcomeClass(game.outcome_label)));
     add(card, node('p', `예측 ${pct(game.predicted_success_probability)} · 리뷰 ${num(game.total_reviews)}개 · 긍정률 ${pct(game.positive_rate)}`, 'muted'));
+    add(card, node('p', `${game.business_model} · ${game.lifecycle} · 신뢰도 ${game.confidence}`, 'muted'));
+    add(card, node('p', semanticProfileText(game), 'muted'));
     add(card, node('p', `플랫폼 ${num(game.platform_count)}개 · 리뷰 성장률 ${game.review_growth_label}`, 'muted'));
+    add(card, node('p', game.reference_reason, 'muted'));
 }
 function openGameDetail(appid) {
   const game = (payload.games || []).find(item => Number(item.appid) === Number(appid));
@@ -342,12 +394,22 @@ function openGameDetail(appid) {
   add(detail, node('p', `모델 예측 성공확률 ${pct(game.predicted_success_probability)} / 리뷰 ${num(game.total_reviews)}개 / 긍정률 ${pct(game.positive_rate)}`));
   add(detail, node('p', `장르: ${game.genres || '없음'}`, 'muted'));
   add(detail, node('p', `태그: ${game.steam_tags || '없음'}`, 'muted'));
+  add(detail, node('p', `의미 분류: ${game.business_model} / ${game.lifecycle} / ${game.production_context} / 신뢰도 ${game.confidence}`, 'muted'));
+  add(detail, node('p', semanticProfileText(game), 'muted'));
   add(detail, node('p', `플랫폼: Windows ${game.platform_windows ? '지원' : '미지원'}, Mac ${game.platform_mac ? '지원' : '미지원'}, Linux ${game.platform_linux ? '지원' : '미지원'}`, 'muted'));
   add(detail, node('p', `리뷰 성장률: ${game.review_growth_label}`, 'muted'));
   add(detail, node('p', game.model_opinion));
+  add(detail, node('p', game.reference_reason));
   const link = document.getElementById('steamDetailLink');
   link.href = game.steam_url;
   document.getElementById('gameModal').classList.add('open');
+}
+function semanticProfileText(game) {
+  const profile = game.semantic_profile || {};
+  const business = profile.business_model || {};
+  const lifecycle = profile.lifecycle || {};
+  const production = profile.production_context || {};
+  return `항목별 신뢰도: 비즈니스 ${pct(business.confidence || 0)}, 출시상태 ${pct(lifecycle.confidence || 0)}, 제작맥락 ${pct(production.confidence || 0)} · 종합 ${pct(profile.overall_confidence || 0)} (${profile.confidence_band || game.confidence || '낮음'})`;
 }
 function closeGameDetail() {
   document.getElementById('gameModal').classList.remove('open');
@@ -418,8 +480,10 @@ function renderGames() {
   const success = document.getElementById('successGames');
   const risk = document.getElementById('riskGames');
   clear(success); clear(risk);
-  add(success, gameTable(payload.similar_games.success_examples || []));
-  add(risk, gameTable(payload.similar_games.risk_examples || []));
+  const successGrid = add(success, node('div', '', 'reference-grid'));
+  const riskGrid = add(risk, node('div', '', 'reference-grid'));
+  (payload.similar_games.success_examples || []).forEach(game => addGameCard(successGrid, game));
+  (payload.similar_games.risk_examples || []).forEach(game => addGameCard(riskGrid, game));
 }
 function renderCautions() {
   const rec = payload.recommendations;
@@ -505,7 +569,7 @@ document.querySelectorAll('.tab-button').forEach(button => {
 document.getElementById('gameModal').addEventListener('click', event => {
   if (event.target.id === 'gameModal') closeGameDetail();
 });
-renderSummary(); renderGuidance(); renderInputs(); renderTrends(); renderGames(); renderCautions(); renderExternal(); renderImportance(); renderComparison(); updateInterface();
+renderSummary(); renderGuidance(); renderSemanticModel(); renderInputs(); renderTrends(); renderGames(); renderCautions(); renderExternal(); renderImportance(); renderComparison(); updateInterface();
 </script>
 </body>
 </html>

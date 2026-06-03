@@ -127,6 +127,18 @@ $env:PYTHONPATH="src"
 python -m steam_success.collect.review_timeline --appid 1903340 --max-reviews-per-game 100
 ```
 
+보고서의 리뷰 본문 표본을 늘릴 때는 2025~2026 후보 전체를 먼저 넓히고, 라벨 가능 후보 또는 상위 예측 후보부터 제한 실행한다.
+
+```powershell
+$env:PYTHONPATH="src"
+python -m steam_success.collect.search_release_window --start-year 2025 --end-year 2026 --stop-before-year 2025 --sleep-seconds 1.5
+python -m steam_success.collect.appdetails_for_appids --input-csv data/interim/search_release_window_appids.csv --sleep-seconds 1.0 --max-retries 5 --flush-every 100
+python -m steam_success.preprocess.candidate_filter --start-year 2025 --end-year 2026
+python -m steam_success.collect.review_timeline --input-csv data/interim/game_candidates_2025_2026.csv --max-apps 250 --max-reviews-per-game 500 --page-size 100
+```
+
+보고서용 `fetch_review_texts`도 Steam Reviews API cursor를 따라 페이지별 raw JSON을 저장하므로, `review_texts_per_game`을 100보다 크게 설정해도 게임당 여러 페이지를 수집할 수 있다.
+
 ## 검증 축: 공식 API / SteamSpy / SteamDB
 
 공식 `IStoreService/GetAppList`는 출시일을 주지 않으므로 메인 수집이 아니라 모집단 차이 확인에 사용한다. 전체 appdetails 호출은 하지 않는다.

@@ -50,8 +50,8 @@ python -m steam_success.preprocess.candidate_filter --start-year 2025 --end-year
 | request_sleep_seconds | `0.2` |
 | external_signal_sample_size | `12` |
 | external_request_sleep_seconds | `0.15` |
-| review_text_sample_size | `24` |
-| review_texts_per_game | `20` |
+| review_text_sample_size | `40` |
+| review_texts_per_game | `100` |
 | review_timeline_page_size | `100` |
 | review_timeline_max_reviews_per_game | `500` |
 | country | `US` |

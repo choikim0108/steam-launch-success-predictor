@@ -305,21 +305,6 @@ def write_run_summary(reports_dir: Path, dataset: pd.DataFrame, result: dict[str
     (reports_dir / "RUN_SUMMARY.md").write_text("\n".join(text) + "\n", encoding="utf-8")
 
 
-def _genre_success_summary(dataset: pd.DataFrame) -> pd.DataFrame:
-    rows = []
-    for row in _records(cast(pd.DataFrame, dataset[["genres", "success"]])):
-        genres = [part.strip() for part in str(row["genres"]).split(",") if part.strip()]
-        for genre in genres:
-            rows.append({"genre": genre, "success": _as_int(row["success"])})
-    if not rows:
-        return pd.DataFrame(columns=["genre", "game_count", "success_count", "success_rate"])
-    genre_data = pd.DataFrame(rows)
-    summary = cast(pd.DataFrame, genre_data.groupby("genre", as_index=False).agg(game_count=("success", "size"), success_count=("success", "sum")))
-    summary["success_rate"] = summary["success_count"] / summary["game_count"]
-    filtered = cast(pd.DataFrame, summary[summary["game_count"] >= 3])
-    return filtered.sort_values(by=["success_rate", "success_count", "game_count"], ascending=False)
-
-
 def build_criteria_tables(dataset: pd.DataFrame) -> dict[str, pd.DataFrame]:
     return {
         "genre": _exploded_success_summary(dataset, "genres", "genre"),
@@ -345,13 +330,21 @@ def _success_summary(data: pd.DataFrame, criteria_name: str, value_col: str) -> 
 def _exploded_success_summary(dataset: pd.DataFrame, column: str, criteria_name: str) -> pd.DataFrame:
     rows = []
     for row in _records(cast(pd.DataFrame, dataset[[column, "success"]])):
-        values = [part.strip() for part in str(row[column]).split(",") if part.strip()]
+        values = _split_criteria_values(row[column])
         for value in values:
             rows.append({criteria_name: value, "success": _as_int(row["success"])})
     data = pd.DataFrame(rows)
     if data.empty:
         return _success_summary(data, criteria_name, criteria_name)
     return _success_summary(data, criteria_name, criteria_name).query("game_count >= 3")
+
+
+def _split_criteria_values(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, float) and np.isnan(value):
+        return []
+    return [part.strip() for part in str(value).split(",") if part.strip() and part.strip().lower() != "nan"]
 
 
 def _binned_success_summary(dataset: pd.DataFrame, column: str, criteria_name: str, bins: list[float], labels: list[str]) -> pd.DataFrame:

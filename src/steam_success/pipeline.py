@@ -36,6 +36,7 @@ def run(root: Path, max_apps: int | None = None) -> None:
     review_targets = select_review_games(dataset, settings=SETTINGS)
     review_texts = fetch_review_texts(review_targets["appid"].astype(int).tolist(), paths.data_raw, collected["config"], SETTINGS.review_texts_per_game)
     review_analysis = analyze_review_topics(dataset, review_texts, paths.reports)
+    review_samples = pd.read_csv(paths.reports / "review_samples.csv") if (paths.reports / "review_samples.csv").exists() else pd.DataFrame()
     feature_importance = result.get("feature_importance")
     if not isinstance(feature_importance, pd.DataFrame):
         feature_importance = pd.read_csv(paths.reports / "feature_importance.csv")
@@ -47,7 +48,7 @@ def run(root: Path, max_apps: int | None = None) -> None:
     write_workspace_docs_index(root, paths.docs)
     write_run_summary(paths.reports, dataset, result, chart_paths)
     write_interactive_report(paths.reports, dataset)
-    write_market_insight_site(paths.reports, dataset, pd.DataFrame(review_analysis.get("summary", [])), feature_importance)
+    write_market_insight_site(paths.reports, dataset, pd.DataFrame(review_analysis.get("summary", [])), feature_importance, review_samples)
     print("Steam success prediction pipeline completed")
     success_count = len(dataset[dataset["success"] == 1])
     print(f"valid_games={len(dataset)} success={success_count} best_model={result['best_model']}")

@@ -21,7 +21,8 @@ def sample_dataset() -> pd.DataFrame:
             "name": "Successful Action RPG",
             "genres": "Action, RPG",
             "steam_tags": "Action, RPG, Multiplayer, Free to Play",
-            "categories": "Single-player, Full controller support, Steam Achievements",
+            "categories": "Single-player, Full controller support, Steam Achievements, In-App Purchases",
+            "is_free": True,
             "price_final_usd": 19.99,
             "supported_language_count": 12,
             "platform_windows": True,
@@ -47,6 +48,7 @@ def sample_dataset() -> pd.DataFrame:
             "genres": "Action, RPG",
             "steam_tags": "RPG, Cute",
             "categories": "Single-player",
+            "is_free": False,
             "price_final_usd": 29.99,
             "supported_language_count": 4,
             "platform_windows": True,
@@ -72,6 +74,7 @@ def sample_dataset() -> pd.DataFrame:
             "genres": "Puzzle, Simulation",
             "steam_tags": "Puzzle, Cute",
             "categories": "Single-player, Steam Achievements",
+            "is_free": False,
             "price_final_usd": 9.99,
             "supported_language_count": 8,
             "platform_windows": True,
@@ -97,6 +100,7 @@ def sample_dataset() -> pd.DataFrame:
             "genres": "Builder \"Deluxe\", Strategy <Test>",
             "steam_tags": "Strategy <Test>, Multiplayer",
             "categories": "Multi-player, Co-op",
+            "is_free": False,
             "price_final_usd": 39.99,
             "supported_language_count": 3,
             "platform_windows": True,
@@ -126,6 +130,13 @@ def sample_feature_importance() -> pd.DataFrame:
     ])
 
 
+def sample_review_samples() -> pd.DataFrame:
+    return pd.DataFrame([
+        {"appid": 10, "name": "Successful Action RPG", "matched_genres": "Action", "success": 1, "voted_up": True, "playtime_hours": 12.0, "review_text": "combat gameplay replayability controller support feels polished"},
+        {"appid": 10, "name": "Successful Action RPG", "matched_genres": "Action", "success": 1, "voted_up": False, "playtime_hours": 2.0, "review_text": "performance stutter bugs crash during combat"},
+    ])
+
+
 class MarketInsightSiteTests(unittest.TestCase):
     def test_market_payload_happy_path(self) -> None:
         payload = build_market_insight_payload(sample_dataset(), pd.DataFrame(), sample_feature_importance())
@@ -144,11 +155,13 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertTrue(developer_inputs["tags"])
         input_genres = cast(list[str], developer_inputs["genres"])
         input_tags = cast(list[str], developer_inputs["tags"])
+        strategy_tags = cast(list[str], developer_inputs["strategy_tags"])
         self.assertNotIn("Free To Play", input_genres)
         self.assertNotIn("Early Access", input_genres)
         self.assertNotIn("Action", input_tags)
         self.assertNotIn("RPG", input_tags)
-        self.assertIn("Free to Play", input_tags)
+        self.assertNotIn("Free to Play", input_tags)
+        self.assertIn("Free to Play", strategy_tags)
         self.assertTrue(payload["market_trends"])
         self.assertTrue(games)
         self.assertIn("outcome_label", games[0])
@@ -156,6 +169,9 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertIn("header_image", games[0])
         self.assertIn("platform_count", games[0])
         self.assertIn("review_growth_label", games[0])
+        self.assertIn("business_model", games[0])
+        self.assertIn("lifecycle", games[0])
+        self.assertIn("confidence", games[0])
         self.assertEqual(feature_importance[0]["feature"], "price_final_usd")
         self.assertTrue(similar_games["success_examples"])
         self.assertTrue(recommendations["development_cautions"])
@@ -163,17 +179,75 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertTrue(developer_guidance["cards"])
         self.assertTrue(developer_guidance["checklist"])
 
+    def test_market_payload_adds_semantic_model_and_review_reference_reasons(self) -> None:
+        payload = build_market_insight_payload(sample_dataset(), pd.DataFrame(), sample_feature_importance(), sample_review_samples())
+        summary = cast(dict[str, object], payload["summary"])
+        semantic = cast(dict[str, object], payload["semantic_model"])
+        games = cast(list[dict[str, object]], payload["games"])
+        game = next(row for row in games if int(str(row["appid"])) == 10)
+        evidence = cast(dict[str, object], game["review_evidence"])
+
+        self.assertEqual(summary["analyzed_tag_count"], 7)
+        self.assertTrue(semantic["business_models"])
+        self.assertTrue(semantic["lifecycles"])
+        self.assertTrue(semantic["production_contexts"])
+        self.assertIn("confidence", semantic)
+        self.assertEqual(game["business_model"], "Free to Play")
+        self.assertEqual(game["lifecycle"], "Released")
+        self.assertEqual(game["confidence"], "높음")
+        profile = cast(dict[str, object], game["semantic_profile"])
+        business = cast(dict[str, object], profile["business_model"])
+        self.assertEqual(business["value"], "Free to Play")
+        self.assertGreater(float(str(business["confidence"])), 0.9)
+        self.assertIn("overall_confidence", profile)
+        self.assertIn("confidence_band", profile)
+        self.assertEqual(evidence["sample_count"], 2)
+        self.assertIn("combat", str(evidence["positive_terms"]))
+        self.assertIn("performance", str(evidence["negative_terms"]))
+        self.assertIn("크롤링 리뷰 2개", str(game["reference_reason"]))
+
     def test_market_payload_filters_noisy_review_keywords(self) -> None:
         topics = pd.DataFrame([
             {"review_sentiment": "negative", "top_terms": "ayy, optimization, es, nie, bug, aaa"},
-            {"review_sentiment": "positive", "top_terms": "fun, ayy, replay"},
+            {"review_sentiment": "positive", "top_terms": "fun, ayy, entendi tutorial, combat, replayability"},
         ])
 
         payload = build_market_insight_payload(sample_dataset(), topics, sample_feature_importance())
         recommendations = cast(dict[str, object], payload["recommendations"])
 
         self.assertEqual(recommendations["development_cautions"], ["optimization", "bug"])
-        self.assertEqual(recommendations["positioning_strengths"], ["fun", "replay"])
+        self.assertEqual(recommendations["positioning_strengths"], ["combat", "replayability"])
+
+    def test_market_payload_separates_strategy_tags_from_genres_and_opportunities(self) -> None:
+        data = sample_dataset()
+        data.loc[0, "genres"] = "Indie, Free To Play, Early Access, Action"
+        data.loc[0, "steam_tags"] = "Indie, Free to Play, Early Access, Multiplayer"
+        data.loc[0, "predicted_success_probability"] = 0.9
+
+        payload = build_market_insight_payload(data, pd.DataFrame(), sample_feature_importance())
+        developer_inputs = cast(dict[str, object], payload["developer_inputs"])
+        developer_guidance = cast(dict[str, object], payload["developer_guidance"])
+        market_trends = cast(list[dict[str, object]], payload["market_trends"])
+        input_genres = cast(list[str], developer_inputs["genres"])
+        input_tags = cast(list[str], developer_inputs["tags"])
+        strategy_tags = cast(list[str], developer_inputs["strategy_tags"])
+        signals = [str(card["signal"]) for card in cast(list[dict[str, object]], developer_guidance["cards"])]
+        trend_names = [str(row["name"]) for row in market_trends]
+
+        self.assertNotIn("Indie", input_genres)
+        self.assertNotIn("Free To Play", input_genres)
+        self.assertNotIn("Early Access", input_genres)
+        self.assertIn("Indie", strategy_tags)
+        self.assertIn("Free to Play", strategy_tags)
+        self.assertIn("Early Access", strategy_tags)
+        self.assertNotIn("Indie", input_tags)
+        self.assertNotIn("Free to Play", input_tags)
+        self.assertNotIn("Early Access", input_tags)
+        self.assertNotIn("Free To Play", signals)
+        self.assertNotIn("Free to Play", signals)
+        self.assertNotIn("Indie", trend_names)
+        self.assertNotIn("Free To Play", trend_names)
+        self.assertNotIn("Early Access", trend_names)
 
     def test_external_availability_disabled_when_data_missing(self) -> None:
         data = sample_dataset()
@@ -188,6 +262,18 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertIn("데이터 부족", str(webzine["reason"]))
         self.assertFalse(critic_score["enabled"])
         self.assertIn("평점", str(critic_score["reason"]))
+
+    def test_steamspy_enabled_when_owner_proxy_exists(self) -> None:
+        data = sample_dataset()
+        data["steamspy_owners_median"] = [1000, 0, 2000, 0]
+
+        payload = build_market_insight_payload(data, pd.DataFrame())
+        external_data = cast(dict[str, object], payload["external_data"])
+        steamspy = cast(dict[str, object], external_data["steamspy"])
+        metrics = cast(dict[str, object], steamspy["metrics"])
+
+        self.assertTrue(steamspy["enabled"])
+        self.assertEqual(metrics["owners_proxy_count"], 2)
 
     def test_prediction_feature_columns_exclude_future_outcomes(self) -> None:
         forbidden = {
@@ -259,6 +345,9 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertIn("selectedGames", html)
         self.assertIn("tagComboRecommendations", html)
         self.assertIn("선택 장르 기준 성공확률 높은 태그 조합", html)
+        self.assertIn("maximizePlanButton", html)
+        self.assertIn("선택 조건 최적화", html)
+        self.assertIn("optimizePlanningInputs", html)
         self.assertIn("tagComboCandidates", html)
         self.assertIn("renderTagComboRecommendations", html)
         self.assertIn("gameModal", html)
@@ -267,6 +356,11 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertIn("data-impact-disabled", html)
         self.assertIn("feature importance", html)
         self.assertIn("리뷰 성장률", html)
+        self.assertIn("의미 모델·추천 신뢰도", html)
+        self.assertIn("renderSemanticModel", html)
+        self.assertIn("reference_reason", html)
+        self.assertIn("semanticProfileText", html)
+        self.assertIn("항목별 신뢰도", html)
 
     def test_static_html_contains_tabs_balanced_cards_images_and_explanations(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -278,6 +372,8 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertIn("선택 조건 기반 참고 게임", html)
         self.assertIn("successReferenceGames", html)
         self.assertIn("riskReferenceGames", html)
+        self.assertIn("payload.similar_games.success_examples", html)
+        self.assertIn("reference_reason", html)
         self.assertIn("header_image", html)
         self.assertIn("createGameImage", html)
         self.assertIn("importance_description", html)

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 
+from steam_success.market_insight import build_market_insight_payload
 from steam_success.reporting import top_predicted_game
 
 
@@ -30,8 +32,15 @@ def write_interactive_report(reports_dir: Path, dataset: pd.DataFrame) -> None:
     sections = {key: _load_table(reports_dir, key) for key in SECTION_LABELS}
     metrics_df = pd.read_csv(reports_dir / "model_metrics.csv").sort_values(["f1", "recall", "accuracy"], ascending=False)
     metrics = metrics_df.head(1).to_dict(orient="records")
-    conclusions = _build_conclusions(dataset, metrics_df)
-    review_topics = _load_review_topics(reports_dir)
+    conclusions = _build_conclusions(reports_dir, dataset, metrics_df)
+    review_topics_frame = _load_review_topics_frame(reports_dir)
+    review_topics = review_topics_frame.to_dict(orient="records") if not review_topics_frame.empty else []
+    feature_importance = pd.read_csv(reports_dir / "feature_importance.csv") if (reports_dir / "feature_importance.csv").exists() else pd.DataFrame()
+    review_samples = pd.read_csv(reports_dir / "review_samples.csv") if (reports_dir / "review_samples.csv").exists() else pd.DataFrame()
+    market_payload = build_market_insight_payload(dataset, review_topics_frame, feature_importance, review_samples)
+    similar_games = cast(dict[str, object], market_payload.get("similar_games", {})) if isinstance(market_payload.get("similar_games", {}), dict) else {}
+    success_references = cast(list[dict[str, object]], similar_games.get("success_examples", []))[:4]
+    risk_references = cast(list[dict[str, object]], similar_games.get("risk_examples", []))[:4]
     predicted_game = top_predicted_game(reports_dir)
     payload = {
         "labels": SECTION_LABELS,
@@ -44,6 +53,9 @@ def write_interactive_report(reports_dir: Path, dataset: pd.DataFrame) -> None:
             "conclusions": conclusions,
             "predicted_game": predicted_game,
             "review_topics": review_topics,
+            "semantic_model": market_payload.get("semantic_model", {}),
+            "external_data": market_payload.get("external_data", {}),
+            "reference_games": {"success": success_references, "risk": risk_references},
             "figures": _existing_figures(reports_dir),
         },
     }
@@ -51,16 +63,16 @@ def write_interactive_report(reports_dir: Path, dataset: pd.DataFrame) -> None:
     (reports_dir / "interactive_report.html").write_text(html, encoding="utf-8")
 
 
-def _build_conclusions(dataset: pd.DataFrame, metrics_df: pd.DataFrame) -> dict[str, str]:
+def _build_conclusions(reports_dir: Path, dataset: pd.DataFrame, metrics_df: pd.DataFrame) -> dict[str, str]:
     success_count = len(dataset[dataset["success"] == 1])
     success_rate = success_count / len(dataset) if len(dataset) else 0
     best = metrics_df.iloc[0].to_dict() if not metrics_df.empty else {}
     best_model = str(best.get("model", ""))
     best_f1 = float(best.get("f1") or 0)
     best_accuracy = float(best.get("accuracy") or 0)
-    genre = _top_criteria("criteria_genre.csv")
-    price = _top_criteria("criteria_price_band.csv")
-    external = _top_criteria("criteria_external_attention.csv")
+    genre = _top_criteria(reports_dir, "criteria_genre.csv")
+    price = _top_criteria(reports_dir, "criteria_price_band.csv")
+    external = _top_criteria(reports_dir, "criteria_external_attention.csv")
     brief = (
         f"현재 표본 {len(dataset)}개 중 성공 기준 충족 게임은 {success_count}개({success_rate:.1%})입니다. "
         f"이번 실행에서는 {best_model}가 F1 {best_f1:.3f}로 가장 높았고, "
@@ -76,11 +88,11 @@ def _build_conclusions(dataset: pd.DataFrame, metrics_df: pd.DataFrame) -> dict[
     return {"brief": brief, "detail": detail}
 
 
-def _load_review_topics(reports_dir: Path) -> list[dict[str, object]]:
+def _load_review_topics_frame(reports_dir: Path) -> pd.DataFrame:
     path = reports_dir / "review_topic_summary.csv"
     if not path.exists():
-        return []
-    return pd.read_csv(path).to_dict(orient="records")
+        return pd.DataFrame()
+    return pd.read_csv(path)
 
 
 def _existing_figures(reports_dir: Path) -> list[dict[str, str]]:
@@ -92,8 +104,8 @@ def _existing_figures(reports_dir: Path) -> list[dict[str, str]]:
     return result
 
 
-def _top_criteria(filename: str) -> str:
-    path = Path("reports") / filename
+def _top_criteria(reports_dir: Path, filename: str) -> str:
+    path = reports_dir / filename
     if not path.exists():
         return "데이터 부족"
     table = pd.read_csv(path)
@@ -107,6 +119,7 @@ HTML_TEMPLATE = """<!doctype html>
 <html lang=\"ko\">
 <head>
 <meta charset=\"utf-8\">
+<link rel=\"icon\" href=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111827'/%3E%3Ccircle cx='16' cy='16' r='8' fill='%232563eb'/%3E%3C/svg%3E\">
 <title>Steam 성공 예측 인터랙티브 리포트</title>
 <style>
 body { font-family: Arial, sans-serif; margin: 28px; color: #111827; }
@@ -128,6 +141,9 @@ body { font-family: Arial, sans-serif; margin: 28px; color: #111827; }
 <div id=\"summary\"></div>
 <div class=\"card\"><h2>결론</h2><h3>간략 버전</h3><p id=\"briefConclusion\"></p><h3>상세 버전</h3><p id=\"detailConclusion\"></p></div>
 <div class=\"card\" id=\"predictedGame\"></div>
+<div class=\"card\"><h2>의미 모델·추천 신뢰도</h2><div id=\"semanticModel\"></div></div>
+<div class=\"card\"><h2>외부 데이터 상태</h2><div id=\"externalData\"></div></div>
+<div class=\"card\"><h2>성공/실패 참고 게임 선정 근거</h2><div id=\"referenceGames\"></div></div>
 <div class=\"card\"><h2>시각화</h2><div class=\"figure-grid\" id=\"figures\"></div></div>
 <div class=\"card\"><h2>성공확률 상위 장르 리뷰 토픽</h2><div id=\"reviewTopics\"></div></div>
 <div class=\"controls\" id=\"controls\"></div>
@@ -139,6 +155,16 @@ document.getElementById('briefConclusion').textContent = summary.conclusions.bri
 document.getElementById('detailConclusion').textContent = summary.conclusions.detail;
 const predicted = summary.predicted_game || {};
 document.getElementById('predictedGame').innerHTML = predicted.name ? `<h2>그래서 성공할 것으로 예측되는 게임은 뭔가?</h2><p><a href=\"${predicted.steam_url}\" target=\"_blank\" rel=\"noreferrer\">${predicted.name}</a>입니다. 예측 성공 확률은 ${(Number(predicted.predicted_success_probability || 0) * 100).toFixed(1)}%이고, 현재 리뷰 ${Number(predicted.total_reviews || 0).toLocaleString()}개 / 긍정률 ${(Number(predicted.positive_rate || 0) * 100).toFixed(1)}%입니다.</p>` : '<h2>그래서 성공할 것으로 예측되는 게임은 뭔가?</h2><p>예측 결과 데이터가 없습니다.</p>';
+function pct(value) { return `${(Number(value || 0) * 100).toFixed(1)}%`; }
+function num(value) { return Number(value || 0).toLocaleString(); }
+function semanticSegments(title, rows) { return `<section><h3>${title}</h3>${(rows || []).slice(0, 4).map(row => `<p class=\"small\">${row.segment}: 표본 ${num(row.game_count)}개 · 평균 예측 ${pct(row.average_prediction)} · 성공률 ${pct(row.success_rate)}</p>`).join('')}</section>`; }
+const semantic = summary.semantic_model || {};
+document.getElementById('semanticModel').innerHTML = `<p>전체 추천 신뢰도: ${semantic.confidence?.label || '낮음'} · ${semantic.confidence?.basis || '데이터 보유량 기준'}</p>${semanticSegments('비즈니스 모델', semantic.business_models)}${semanticSegments('출시 상태', semantic.lifecycles)}${semanticSegments('제작 맥락', semantic.production_contexts)}`;
+const external = summary.external_data || {};
+document.getElementById('externalData').innerHTML = Object.entries(external).map(([key, value]) => `<p><b>${key}</b>: ${value.reason || '데이터 부족'}</p>`).join('') || '<p>외부 데이터 상태가 없습니다.</p>';
+function gameReasonCard(game) { return `<article class=\"card\"><h3>${game.name}</h3><p class=\"small\">${game.business_model} / ${game.lifecycle} / ${game.production_context} · 신뢰도 ${game.confidence}</p><p>${game.reference_reason}</p><p class=\"small\">항목별 신뢰도: 비즈니스 ${pct(game.semantic_profile?.business_model?.confidence)}, 출시상태 ${pct(game.semantic_profile?.lifecycle?.confidence)}, 제작맥락 ${pct(game.semantic_profile?.production_context?.confidence)}</p><p><a href=\"${game.steam_url}\" target=\"_blank\" rel=\"noreferrer\">Steam 페이지</a></p></article>`; }
+const refs = summary.reference_games || {};
+document.getElementById('referenceGames').innerHTML = `<h3>성공 참고</h3>${(refs.success || []).map(gameReasonCard).join('') || '<p>성공 참고 데이터가 없습니다.</p>'}<h3>실패/주의 참고</h3>${(refs.risk || []).map(gameReasonCard).join('') || '<p>실패/주의 참고 데이터가 없습니다.</p>'}`;
 document.getElementById('figures').innerHTML = (summary.figures || []).map(figure => `<figure><img src=\"${figure.src}\" alt=\"${figure.name}\"><figcaption class=\"small\">${figure.name}</figcaption></figure>`).join('');
 const topicRows = summary.review_topics || [];
 document.getElementById('reviewTopics').innerHTML = topicRows.length ? `<table class=\"topic-table\"><thead><tr><th>장르</th><th>성공/실패</th><th>긍정/부정</th><th>주요 토픽</th><th>리뷰 수</th></tr></thead><tbody>${topicRows.map(row => `<tr><td>${row.genre}</td><td>${row.game_success}</td><td>${row.review_sentiment}</td><td>${row.top_terms}</td><td>${row.review_count}</td></tr>`).join('')}</tbody></table>` : '<p>리뷰 토픽 데이터가 없습니다.</p>';

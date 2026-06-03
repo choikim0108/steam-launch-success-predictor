@@ -176,35 +176,54 @@ def fetch_review_texts(appids: Iterable[int], raw_dir: Path, config: CrawlConfig
     rows: list[dict[str, object]] = []
     text_dir = raw_dir / "review_texts"
     text_dir.mkdir(parents=True, exist_ok=True)
+    page_size = max(1, min(per_game, 100))
     for appid in appids:
-        url = f"https://store.steampowered.com/appreviews/{appid}"
-        params = {
-            "json": 1,
-            "filter": "recent",
-            "language": "all",
-            "purchase_type": "all",
-            "num_per_page": per_game,
-        }
-        try:
-            response = session.get(url, params=params, timeout=30)
-            response.raise_for_status()
-            payload = response.json()
-        except Exception as exc:
-            rows.append({"appid": int(appid), "review_collection_success": False, "review_error": str(exc)})
-            continue
-        (text_dir / f"review_texts_{int(appid)}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        for item in payload.get("reviews") or []:
-            author = item.get("author") or {}
-            rows.append({
-                "appid": int(appid),
-                "review_collection_success": True,
-                "review_id": str(item.get("recommendationid", "")),
-                "voted_up": bool(item.get("voted_up", False)),
-                "review_text": str(item.get("review", "")).replace("\r", " ").replace("\n", " ").strip(),
-                "playtime_hours": float(author.get("playtime_forever") or 0) / 60,
-                "timestamp_created": int(item.get("timestamp_created") or 0),
-            })
-        time.sleep(config.sleep_seconds)
+        cursor = "*"
+        seen_cursors: set[str] = set()
+        collected = 0
+        page_index = 1
+        while collected < per_game and cursor not in seen_cursors:
+            seen_cursors.add(cursor)
+            url = f"https://store.steampowered.com/appreviews/{appid}"
+            params = {
+                "json": 1,
+                "filter": "recent",
+                "language": "all",
+                "purchase_type": "all",
+                "num_per_page": min(page_size, per_game - collected),
+                "cursor": cursor,
+            }
+            try:
+                response = session.get(url, params=params, timeout=30)
+                response.raise_for_status()
+                payload = response.json()
+            except Exception as exc:
+                rows.append({"appid": int(appid), "review_collection_success": False, "review_error": str(exc)})
+                break
+            (text_dir / f"review_texts_{int(appid)}_page_{page_index}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            if page_index == 1:
+                (text_dir / f"review_texts_{int(appid)}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            reviews = payload.get("reviews") or []
+            if not reviews:
+                break
+            for item in reviews:
+                author = item.get("author") or {}
+                rows.append({
+                    "appid": int(appid),
+                    "review_collection_success": True,
+                    "review_id": str(item.get("recommendationid", "")),
+                    "voted_up": bool(item.get("voted_up", False)),
+                    "review_text": str(item.get("review", "")).replace("\r", " ").replace("\n", " ").strip(),
+                    "playtime_hours": float(author.get("playtime_forever") or 0) / 60,
+                    "timestamp_created": int(item.get("timestamp_created") or 0),
+                })
+            collected += len(reviews)
+            next_cursor = str(payload.get("cursor") or "")
+            if not next_cursor or next_cursor == cursor:
+                break
+            cursor = next_cursor
+            page_index += 1
+            time.sleep(config.sleep_seconds)
     return pd.DataFrame(rows)
 
 

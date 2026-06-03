@@ -6,9 +6,19 @@ from typing import Any, cast
 
 import pandas as pd
 import numpy as np
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
 from steam_success.config import ProjectSettings, SETTINGS
+
+
+REVIEW_STOP_WORDS = {
+    "game", "games", "play", "played", "playing", "just", "like", "good", "great", "love", "fun", "really", "little", "time", "steam", "this", "that", "with", "have", "would", "some", "your", "they", "then", "because", "also", "even", "over", "very", "best", "ever", "people", "room", "life", "que", "la", "le", "les", "des", "sur", "pour", "est", "jeu", "jogo", "juego", "para", "pero", "muito", "ruim", "mierda", "die", "der", "das", "ist", "ich", "und", "uma", "um", "en", "el", "al", "se", "es", "et", "entendi", "10"
+}
+REVIEW_DOMAIN_TERMS = {
+    "art", "audio", "balance", "bug", "bugs", "combat", "content", "control", "controller", "crash", "difficulty", "enemy", "enemies", "gameplay", "grind", "level", "levels", "map", "maps", "matchmaking", "mission", "missions", "music", "optimization", "pacing", "performance", "progression", "quest", "quests", "replayability", "server", "servers", "sound", "story", "stutter", "tutorial", "weapon", "weapons", "writing"
+}
+REVIEW_EXCLUDED_GENRES = {"free to play", "indie", "early access", "nan"}
 
 
 def _records(data: pd.DataFrame) -> list[dict[str, object]]:
@@ -32,6 +42,8 @@ def high_success_genres(dataset: pd.DataFrame, limit: int = 3) -> list[str]:
     source = cast(pd.DataFrame, dataset[["genres", "success", "predicted_success_probability"]])
     for record in _records(source):
         for genre in _split_values(record["genres"]):
+            if genre.strip().lower() in REVIEW_EXCLUDED_GENRES:
+                continue
             rows.append({"genre": genre, "success": _as_int(record["success"]), "probability": _as_float(record["predicted_success_probability"])})
     if not rows:
         return []
@@ -91,12 +103,20 @@ def _keywords(texts: pd.Series) -> str:
     cleaned = [_clean_text(text) for text in texts if len(_clean_text(text)) >= 20]
     if not cleaned:
         return "데이터 부족"
-    vectorizer = CountVectorizer(stop_words="english", ngram_range=(1, 2), min_df=1, max_features=60)
-    matrix = cast(Any, vectorizer.fit_transform(cleaned))
+    vectorizer = TfidfVectorizer(stop_words=list(REVIEW_STOP_WORDS | set(ENGLISH_STOP_WORDS)), ngram_range=(1, 2), min_df=1, max_features=80, token_pattern=r"(?u)\b[a-zA-Z][a-zA-Z]{3,}\b")
+    try:
+        matrix = cast(Any, vectorizer.fit_transform(cleaned))
+    except ValueError:
+        return "데이터 부족"
     scores = np.asarray(matrix.sum(axis=0)).ravel().tolist()
     terms = vectorizer.get_feature_names_out()
-    ranked = sorted(zip(terms, scores, strict=False), key=lambda item: item[1], reverse=True)
-    return ", ".join(term for term, _ in ranked[:8])
+    ranked = sorted(((term, score) for term, score in zip(terms, scores, strict=False) if _useful_keyword(term)), key=lambda item: item[1], reverse=True)
+    return ", ".join(term for term, _ in ranked[:8]) if ranked else "데이터 부족"
+
+
+def _useful_keyword(term: str) -> bool:
+    parts = term.split()
+    return bool(parts) and all(part not in REVIEW_STOP_WORDS for part in parts) and any(part in REVIEW_DOMAIN_TERMS for part in parts)
 
 
 def analyze_review_topics(dataset: pd.DataFrame, reviews: pd.DataFrame, reports_dir: Path) -> dict[str, object]:
