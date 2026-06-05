@@ -297,7 +297,7 @@ def write_run_summary(reports_dir: Path, dataset: pd.DataFrame, result: dict[str
     text += _review_topic_lines(reports_dir)
     text += ["", "## 서비스 개선 및 시장 분석 결론", _service_market_conclusion(reports_dir)]
     text += ["", "## 장르별 결론 상위 항목"]
-    text += [f"- {row['criteria_value']}: 성공 {_as_int(row['success_count'])}개 / 전체 {_as_int(row['game_count'])}개, 성공률 {_as_float(row['success_rate']):.1%}" for row in _records(genre_summary.head(8))]
+    text += [f"- {row['criteria_value']}: 성공 {_as_int(row['success_count'])}개 / 전체 {_as_int(row['game_count'])}개, 성공률 {_as_float(row['success_rate']):.1%} (n={_as_int(row['game_count'])})" for row in _records(_rank_eligible_rows(genre_summary).head(8))]
     text += ["", "## 생성 차트"]
     text += [f"- `{path.relative_to(reports_dir.parent)}`" for path in chart_paths]
     text += ["", "## 결론 위치", "- 상세 결론과 해석 주의사항은 `reports/CONCLUSIONS.md`에 저장했다."]
@@ -318,13 +318,27 @@ def build_criteria_tables(dataset: pd.DataFrame) -> dict[str, pd.DataFrame]:
 
 
 def _success_summary(data: pd.DataFrame, criteria_name: str, value_col: str) -> pd.DataFrame:
+    columns = ["criteria", "criteria_value", "game_count", "success_count", "success_rate", "smoothed_success_rate", "sample_status", "rank_eligible"]
     if data.empty:
-        return pd.DataFrame(columns=["criteria", "criteria_value", "game_count", "success_count", "success_rate"])
+        return pd.DataFrame(columns=columns)
     summary = cast(pd.DataFrame, data.groupby(value_col, as_index=False).agg(game_count=("success", "size"), success_count=("success", "sum")))
     summary["success_rate"] = summary["success_count"] / summary["game_count"]
+    global_rate = float(data["success"].mean()) if len(data) else 0.0
+    summary["smoothed_success_rate"] = (summary["success_count"] + SETTINGS.criteria_smoothing_alpha * global_rate) / (summary["game_count"] + SETTINGS.criteria_smoothing_alpha)
+    minimum = _criteria_min_sample(criteria_name)
+    summary["rank_eligible"] = summary["game_count"] >= minimum
+    summary["sample_status"] = summary["rank_eligible"].map(lambda eligible: "충분" if bool(eligible) else "표본 부족")
     summary.insert(0, "criteria", criteria_name)
     summary = cast(pd.DataFrame, summary.rename(columns={value_col: "criteria_value"}))
-    return summary.sort_values(by=["success_rate", "success_count", "game_count"], ascending=False)
+    return summary.sort_values(by=["rank_eligible", "smoothed_success_rate", "success_count", "game_count"], ascending=False)
+
+
+def _criteria_min_sample(criteria_name: str) -> int:
+    if criteria_name == "genre":
+        return SETTINGS.criteria_genre_min_sample
+    if criteria_name == "category":
+        return SETTINGS.criteria_category_min_sample
+    return 1
 
 
 def _exploded_success_summary(dataset: pd.DataFrame, column: str, criteria_name: str) -> pd.DataFrame:
@@ -336,7 +350,7 @@ def _exploded_success_summary(dataset: pd.DataFrame, column: str, criteria_name:
     data = pd.DataFrame(rows)
     if data.empty:
         return _success_summary(data, criteria_name, criteria_name)
-    return _success_summary(data, criteria_name, criteria_name).query("game_count >= 3")
+    return _success_summary(data, criteria_name, criteria_name)
 
 
 def _split_criteria_values(value: object) -> list[str]:
@@ -377,7 +391,7 @@ def _criteria_markdown(criteria_tables: dict[str, pd.DataFrame]) -> str:
     }
     lines: list[str] = []
     for key, title in labels.items():
-        table = criteria_tables[key].head(5)
+        table = _rank_eligible_rows(criteria_tables[key]).head(5)
         lines.append(f"### {title}")
         if table.empty:
             lines.append("- 분석 가능한 항목이 부족함")
@@ -390,6 +404,20 @@ def _criteria_markdown(criteria_tables: dict[str, pd.DataFrame]) -> str:
     return "\n".join(lines).strip()
 
 
+
+def _rank_eligible_rows(table: pd.DataFrame) -> pd.DataFrame:
+    if table.empty or "rank_eligible" not in table.columns:
+        return table
+    mask = cast(pd.Series, table["rank_eligible"]).map(_truthy)
+    return cast(pd.DataFrame, table[mask])
+
+
+def _truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    return text in {"true", "1", "yes", "y"}
+
 def write_conclusions_doc(output_path: Path, dataset: pd.DataFrame, best_row: dict[str, object], criteria_tables: dict[str, pd.DataFrame], predicted_game: dict[str, object]) -> None:
     total = len(dataset)
     success_count = len(dataset[dataset["success"] == 1])
@@ -397,11 +425,11 @@ def write_conclusions_doc(output_path: Path, dataset: pd.DataFrame, best_row: di
     success_rate = success_count / total if total else 0
     genre_summary = criteria_tables["genre"]
     top_genres = [
-        f"- {row['criteria_value']}: 성공 {_as_int(row['success_count'])}개 / 전체 {_as_int(row['game_count'])}개, 성공률 {_as_float(row['success_rate']):.1%}"
-        for row in _records(genre_summary.head(10))
+        f"- {row['criteria_value']}: 성공 {_as_int(row['success_count'])}개 / 전체 {_as_int(row['game_count'])}개, 성공률 {_as_float(row['success_rate']):.1%} (n={_as_int(row['game_count'])})"
+        for row in _records(_rank_eligible_rows(genre_summary).head(10))
     ]
     if not top_genres:
-        top_genres = ["- 장르별 표본이 부족해 최소 3개 이상 등장한 장르 기준 결론을 만들 수 없음."]
+        top_genres = [f"- 장르별 표본이 부족해 최소 {SETTINGS.criteria_genre_min_sample}개 이상 등장한 장르 기준 결론을 만들 수 없음."]
     raw_accuracy = best_row.get("accuracy")
     raw_f1 = best_row.get("f1")
     accuracy = raw_accuracy if isinstance(raw_accuracy, float | int) else 0.0

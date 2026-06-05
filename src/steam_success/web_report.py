@@ -25,7 +25,21 @@ def _load_table(reports_dir: Path, key: str) -> list[dict[str, object]]:
     path = reports_dir / f"criteria_{key}.csv"
     if not path.exists():
         return []
-    return pd.read_csv(path).head(12).to_dict(orient="records")
+    table = pd.read_csv(path)
+    if table.empty:
+        return []
+    if "rank_eligible" not in table.columns:
+        return table.head(12).to_dict(orient="records")
+    eligible = table[table["rank_eligible"].map(_truthy)].head(12)
+    exploratory = table[~table["rank_eligible"].map(_truthy)].head(12)
+    return pd.concat([eligible, exploratory], ignore_index=True).to_dict(orient="records")
+
+
+def _truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    return text in {"true", "1", "yes", "y"}
 
 
 def write_interactive_report(reports_dir: Path, dataset: pd.DataFrame) -> None:
@@ -41,6 +55,8 @@ def write_interactive_report(reports_dir: Path, dataset: pd.DataFrame) -> None:
     similar_games = cast(dict[str, object], market_payload.get("similar_games", {})) if isinstance(market_payload.get("similar_games", {}), dict) else {}
     success_references = cast(list[dict[str, object]], similar_games.get("success_examples", []))[:4]
     risk_references = cast(list[dict[str, object]], similar_games.get("risk_examples", []))[:4]
+    success_without_evidence = cast(list[dict[str, object]], similar_games.get("success_without_review_evidence", []))[:4]
+    risk_without_evidence = cast(list[dict[str, object]], similar_games.get("risk_without_review_evidence", []))[:4]
     predicted_game = top_predicted_game(reports_dir)
     payload = {
         "labels": SECTION_LABELS,
@@ -55,7 +71,7 @@ def write_interactive_report(reports_dir: Path, dataset: pd.DataFrame) -> None:
             "review_topics": review_topics,
             "semantic_model": market_payload.get("semantic_model", {}),
             "external_data": market_payload.get("external_data", {}),
-            "reference_games": {"success": success_references, "risk": risk_references},
+            "reference_games": {"success": success_references, "risk": risk_references, "success_without_evidence": success_without_evidence, "risk_without_evidence": risk_without_evidence},
             "figures": _existing_figures(reports_dir),
         },
     }
@@ -111,6 +127,10 @@ def _top_criteria(reports_dir: Path, filename: str) -> str:
     table = pd.read_csv(path)
     if table.empty:
         return "데이터 부족"
+    if "rank_eligible" in table.columns:
+        eligible = table[table["rank_eligible"].map(_truthy)]
+        if not eligible.empty:
+            table = eligible
     row = table.iloc[0]
     return f"{row['criteria_value']} (성공률 {float(row['success_rate']):.1%}, n={int(row['game_count'])})"
 
@@ -159,12 +179,13 @@ function pct(value) { return `${(Number(value || 0) * 100).toFixed(1)}%`; }
 function num(value) { return Number(value || 0).toLocaleString(); }
 function semanticSegments(title, rows) { return `<section><h3>${title}</h3>${(rows || []).slice(0, 4).map(row => `<p class=\"small\">${row.segment}: 표본 ${num(row.game_count)}개 · 평균 예측 ${pct(row.average_prediction)} · 성공률 ${pct(row.success_rate)}</p>`).join('')}</section>`; }
 const semantic = summary.semantic_model || {};
-document.getElementById('semanticModel').innerHTML = `<p>전체 추천 신뢰도: ${semantic.confidence?.label || '낮음'} · ${semantic.confidence?.basis || '데이터 보유량 기준'}</p>${semanticSegments('비즈니스 모델', semantic.business_models)}${semanticSegments('출시 상태', semantic.lifecycles)}${semanticSegments('제작 맥락', semantic.production_contexts)}`;
+const semanticCoverage = semantic.confidence?.coverage || {};
+document.getElementById('semanticModel').innerHTML = `<p>전체 추천 신뢰도: ${semantic.confidence?.label || '낮음'} · ${semantic.confidence?.basis || '데이터 보유량 기준'}</p><p class="small">모집단 coverage: ${semanticCoverage.status || '모집단 coverage 데이터 부족'} · 분석 ${num(semanticCoverage.modeled_games || 0)}개 / 후보 ${num(semanticCoverage.release_window_candidates || 0)}개</p>${semanticSegments('비즈니스 모델', semantic.business_models)}${semanticSegments('출시 상태', semantic.lifecycles)}${semanticSegments('제작 맥락', semantic.production_contexts)}`;
 const external = summary.external_data || {};
 document.getElementById('externalData').innerHTML = Object.entries(external).map(([key, value]) => `<p><b>${key}</b>: ${value.reason || '데이터 부족'}</p>`).join('') || '<p>외부 데이터 상태가 없습니다.</p>';
 function gameReasonCard(game) { return `<article class=\"card\"><h3>${game.name}</h3><p class=\"small\">${game.business_model} / ${game.lifecycle} / ${game.production_context} · 신뢰도 ${game.confidence}</p><p>${game.reference_reason}</p><p class=\"small\">항목별 신뢰도: 비즈니스 ${pct(game.semantic_profile?.business_model?.confidence)}, 출시상태 ${pct(game.semantic_profile?.lifecycle?.confidence)}, 제작맥락 ${pct(game.semantic_profile?.production_context?.confidence)}</p><p><a href=\"${game.steam_url}\" target=\"_blank\" rel=\"noreferrer\">Steam 페이지</a></p></article>`; }
 const refs = summary.reference_games || {};
-document.getElementById('referenceGames').innerHTML = `<h3>성공 참고</h3>${(refs.success || []).map(gameReasonCard).join('') || '<p>성공 참고 데이터가 없습니다.</p>'}<h3>실패/주의 참고</h3>${(refs.risk || []).map(gameReasonCard).join('') || '<p>실패/주의 참고 데이터가 없습니다.</p>'}`;
+document.getElementById('referenceGames').innerHTML = `<h3>성공 참고</h3>${(refs.success || []).map(gameReasonCard).join('') || '<p>성공 참고 데이터가 없습니다.</p>'}<h3>실패/주의 참고</h3>${(refs.risk || []).map(gameReasonCard).join('') || '<p>실패/주의 참고 데이터가 없습니다.</p>'}<h3>리뷰 근거 없는 참고</h3>${[...(refs.success_without_evidence || []), ...(refs.risk_without_evidence || [])].map(gameReasonCard).join('') || '<p>리뷰 근거 없는 참고 데이터가 없습니다.</p>'}`;
 document.getElementById('figures').innerHTML = (summary.figures || []).map(figure => `<figure><img src=\"${figure.src}\" alt=\"${figure.name}\"><figcaption class=\"small\">${figure.name}</figcaption></figure>`).join('');
 const topicRows = summary.review_topics || [];
 document.getElementById('reviewTopics').innerHTML = topicRows.length ? `<table class=\"topic-table\"><thead><tr><th>장르</th><th>성공/실패</th><th>긍정/부정</th><th>주요 토픽</th><th>리뷰 수</th></tr></thead><tbody>${topicRows.map(row => `<tr><td>${row.genre}</td><td>${row.game_success}</td><td>${row.review_sentiment}</td><td>${row.top_terms}</td><td>${row.review_count}</td></tr>`).join('')}</tbody></table>` : '<p>리뷰 토픽 데이터가 없습니다.</p>';
@@ -173,16 +194,26 @@ const controls = document.getElementById('controls');
 Object.entries(data.labels).forEach(([key, label]) => {
   controls.insertAdjacentHTML('beforeend', `<label><input type=\"checkbox\" checked value=\"${key}\" onchange=\"render()\"> ${label}</label>`);
 });
+function rankEligible(row) {
+  return row.rank_eligible === undefined || row.rank_eligible === true || row.rank_eligible === 'True' || row.rank_eligible === 'true';
+}
+function criteriaBars(rows) {
+  return rows.map(row => {
+    const rate = Number(row.success_rate || 0);
+    const pct = Math.round(rate * 1000) / 10;
+    const status = row.sample_status ? ` · ${row.sample_status}` : '';
+    return `<div class=\"bar-row\"><div>${row.criteria_value}</div><div class=\"bar-bg\"><div class=\"bar\" style=\"width:${pct}%\"></div></div><div>${pct}%</div></div><div class=\"small\">성공 ${row.success_count} / 전체 ${row.game_count}${status}</div>`;
+  }).join('');
+}
 function sectionHtml(key) {
   const rows = data.sections[key] || [];
   const label = data.labels[key];
   if (!rows.length) return `<div class=\"card\"><h2>${label}</h2><p>표시할 데이터가 없습니다.</p></div>`;
-  const bars = rows.map(row => {
-    const rate = Number(row.success_rate || 0);
-    const pct = Math.round(rate * 1000) / 10;
-    return `<div class=\"bar-row\"><div>${row.criteria_value}</div><div class=\"bar-bg\"><div class=\"bar\" style=\"width:${pct}%\"></div></div><div>${pct}%</div></div><div class=\"small\">성공 ${row.success_count} / 전체 ${row.game_count}</div>`;
-  }).join('');
-  return `<div class=\"card\"><h2>${label}</h2>${bars}</div>`;
+  const eligible = rows.filter(rankEligible);
+  const exploratory = rows.filter(row => !rankEligible(row));
+  const mainRows = eligible.length ? eligible : rows;
+  const exploratoryHtml = exploratory.length ? `<h3>탐색 후보 / 표본 부족</h3>${criteriaBars(exploratory)}` : '';
+  return `<div class=\"card\"><h2>${label}</h2>${criteriaBars(mainRows)}${exploratoryHtml}</div>`;
 }
 function render() {
   const selected = [...document.querySelectorAll('input[type=checkbox]:checked')].map(input => input.value);

@@ -5,11 +5,11 @@ from typing import Callable, cast
 
 import pandas as pd
 
+from steam_success.config import SETTINGS
 from steam_success.review_analysis import REVIEW_DOMAIN_TERMS, REVIEW_STOP_WORDS, _keywords
 from steam_success.reporting import steam_store_url
 
 
-MIN_TREND_SAMPLE = 2
 NOISY_REVIEW_TERMS = {"aaa", "ayy", "es", "nie"}
 STRATEGY_TAG_NAMES = {"indie", "free to play", "free-to-play", "early access"}
 STRATEGY_TAG_LABELS = {"indie": "Indie", "free to play": "Free to Play", "free-to-play": "Free to Play", "early access": "Early Access"}
@@ -53,7 +53,7 @@ def build_market_insight_payload(dataset: pd.DataFrame, review_topics: pd.DataFr
             "model_2": "기획 인사이트 추천 엔진",
         },
         "summary": _summary(data),
-        "developer_inputs": _developer_inputs(genres, tags),
+        "developer_inputs": _developer_inputs(data, genres, tags),
         "developer_guidance": _developer_guidance(data, genres, tags),
         "semantic_model": _semantic_model(data),
         "market_trends": market_trends,
@@ -93,6 +93,9 @@ def _prepared(dataset: pd.DataFrame) -> pd.DataFrame:
         "metacritic_score": 0,
         "coming_soon": False,
     }
+    for target, source in {"review_count_30d": "reviews_30d", "review_count_90d": "reviews_90d"}.items():
+        if target not in data.columns and source in data.columns:
+            data[target] = data[source]
     for column, value in defaults.items():
         if column not in data.columns:
             data[column] = value
@@ -122,18 +125,36 @@ def _unique_terms(data: pd.DataFrame, column: str) -> set[str]:
     return terms
 
 
-def _developer_inputs(genres: list[dict[str, object]], categories: list[dict[str, object]]) -> dict[str, object]:
-    input_genres = list(dict.fromkeys([str(row["name"]) for row in genres if _is_genre_term(str(row["name"]))] + [str(row["name"]) for row in categories if _is_genre_like_tag(str(row["name"]))]))[:30]
+def _developer_inputs(data: pd.DataFrame, genres: list[dict[str, object]], categories: list[dict[str, object]]) -> dict[str, object]:
+    input_genres = list(dict.fromkeys([str(row["name"]) for row in genres if _is_genre_term(str(row["name"]))] + [str(row["name"]) for row in categories if _is_genre_like_tag(str(row["name"]))]))
     genre_names = {name.lower() for name in input_genres}
     strategy_tags = list(dict.fromkeys([_strategy_tag_label(str(row["name"])) for row in genres + categories if _is_strategy_tag(str(row["name"]))]))
     strategy_names = {name.lower() for name in strategy_tags}
+    input_tags = [str(row["name"]) for row in categories if str(row["name"]).lower() not in genre_names and _strategy_tag_label(str(row["name"])).lower() not in strategy_names]
+    checkbox_fields = _developer_checkbox_fields(data)
     return {
         "genres": input_genres,
-        "tags": [str(row["name"]) for row in categories if str(row["name"]).lower() not in genre_names and _strategy_tag_label(str(row["name"])).lower() not in strategy_names][:18],
+        "tags": input_tags,
         "strategy_tags": strategy_tags,
         "numeric_fields": ["price_final_usd", "supported_language_count", "release_month"],
-        "checkbox_fields": ["platform_windows", "platform_mac", "platform_linux", "has_multiplayer", "supports_controller", "supports_achievements"],
+        "checkbox_fields": checkbox_fields,
+        "input_groups": [
+            _input_group("genres", "메인 장르/세부 장르", input_genres, 12),
+            _input_group("strategy_tags", "시장/출시 전략 태그", strategy_tags, 8),
+            _input_group("tags", "Steam 태그/기능", input_tags, 12),
+            _input_group("checkbox_fields", "상세 기능/카테고리", checkbox_fields, 12, searchable=False),
+        ],
     }
+
+
+def _input_group(key: str, title: str, options: list[str], initial_visible: int, searchable: bool = True) -> dict[str, object]:
+    return {"key": key, "title": title, "options": options, "initial_visible": initial_visible, "searchable": searchable, "show_more": len(options) > initial_visible}
+
+
+def _developer_checkbox_fields(data: pd.DataFrame) -> list[str]:
+    fields = ["platform_windows", "platform_mac", "platform_linux", "has_multiplayer", "supports_controller", "supports_achievements"]
+    optional = ["has_singleplayer", "is_free", "supports_cloud", "steam_deck_verified", "supports_vr"]
+    return fields + [field for field in optional if field in data.columns]
 
 
 def _developer_guidance(data: pd.DataFrame, genres: list[dict[str, object]], tags: list[dict[str, object]]) -> dict[str, object]:
@@ -202,7 +223,8 @@ def _segment_summary(data: pd.DataFrame, classifier: Callable[[dict[str, object]
 def _confidence_summary(data: pd.DataFrame) -> dict[str, object]:
     games = [_game_confidence(row) for row in cast(list[dict[str, object]], data.to_dict(orient="records"))]
     counts = {label: games.count(label) for label in ["높음", "중간", "낮음"]}
-    return {"label": _dataset_confidence(data), "counts": counts, "basis": "리뷰 규모, 긍정률, 표본 수, 외부 owners/webzine 보유 여부를 함께 본 보수적 신뢰도"}
+    coverage = _coverage_summary(data)
+    return {"label": _dataset_confidence(data, coverage), "counts": counts, "basis": "리뷰 규모, 긍정률, 표본 수, 모집단 coverage, 외부 owners/webzine 보유 여부를 함께 본 보수적 신뢰도", "coverage": coverage}
 
 
 def _business_model(row: dict[str, object]) -> str:
@@ -235,12 +257,32 @@ def _row_terms(row: dict[str, object]) -> set[str]:
     return {_strategy_tag_key(part) for part in _split_terms(text)}
 
 
-def _dataset_confidence(data: pd.DataFrame) -> str:
-    if len(data) >= 500 and int((_numeric_series(data, "total_reviews") > 0).sum()) >= 200:
+def _dataset_confidence(data: pd.DataFrame, coverage: dict[str, object] | None = None) -> str:
+    coverage_value = _float((coverage or {}).get("sample_coverage", 0))
+    coverage_known = _int((coverage or {}).get("release_window_candidates", 0)) > 0
+    if len(data) >= 500 and int((_numeric_series(data, "total_reviews") > 0).sum()) >= 200 and coverage_known and coverage_value >= 0.2:
         return "높음"
     if len(data) >= 100:
         return "중간"
     return "낮음"
+
+
+def _coverage_summary(data: pd.DataFrame) -> dict[str, object]:
+    modeled = int(len(data))
+    candidates = _coverage_candidate_count(data)
+    if candidates <= 0:
+        return {"modeled_games": modeled, "release_window_candidates": 0, "sample_coverage": 0.0, "status": "모집단 coverage 데이터 부족"}
+    sample_coverage = modeled / candidates if candidates else 0.0
+    status = "coverage 낮음" if sample_coverage < 0.2 else "coverage 충분"
+    return {"modeled_games": modeled, "release_window_candidates": candidates, "sample_coverage": sample_coverage, "status": status}
+
+
+def _coverage_candidate_count(data: pd.DataFrame) -> int:
+    for column in ["release_window_candidate_count", "release_window_candidates", "population_candidate_count"]:
+        if column in data.columns:
+            value = _numeric_series(data, column).max()
+            return _int(value)
+    return 0
 
 
 def _game_confidence(row: dict[str, object]) -> str:
@@ -304,9 +346,13 @@ def _ranked_terms(data: pd.DataFrame, column: str) -> list[dict[str, object]]:
         average_positive_rate=("positive_rate", "mean"),
     ))
     grouped["success_rate"] = grouped["success_count"] / grouped["game_count"]
+    global_rate = _float(_numeric_series(data, "success").mean()) if len(data) else 0.0
+    grouped["smoothed_success_rate"] = (grouped["success_count"] + SETTINGS.criteria_smoothing_alpha * global_rate) / (grouped["game_count"] + SETTINGS.criteria_smoothing_alpha)
+    grouped["rank_eligible"] = grouped["game_count"] >= SETTINGS.market_trend_min_sample
+    grouped["sample_status"] = grouped["rank_eligible"].map(lambda eligible: "충분" if bool(eligible) else "표본 부족")
     grouped["trend"] = grouped.apply(_trend_label, axis=1)
-    ranked = cast(pd.DataFrame, grouped.sort_values(["average_prediction", "success_rate", "game_count"], ascending=False))
-    return cast(list[dict[str, object]], ranked.head(60).to_dict(orient="records"))
+    ranked = cast(pd.DataFrame, grouped.sort_values(["rank_eligible", "average_prediction", "smoothed_success_rate", "game_count"], ascending=False))
+    return cast(list[dict[str, object]], ranked.to_dict(orient="records"))
 
 
 def _similar_games(data: pd.DataFrame, review_evidence: dict[int, dict[str, object]]) -> dict[str, object]:
@@ -314,14 +360,32 @@ def _similar_games(data: pd.DataFrame, review_evidence: dict[int, dict[str, obje
     success_values = _numeric_series(ranked, "success").astype(int)
     success_mask = success_values == 1
     risk_mask = success_values == 0
-    success_examples = cast(pd.DataFrame, ranked[success_mask]).head(8)
-    risk_examples = cast(pd.DataFrame, ranked[risk_mask]).tail(8)
+    success_candidates = cast(pd.DataFrame, ranked[success_mask]).head(8)
+    risk_candidates = cast(pd.DataFrame, ranked[risk_mask]).tail(8)
+    success_rows = [_game_row(row, review_evidence) for row in cast(list[dict[str, object]], success_candidates.to_dict(orient="records"))]
+    risk_rows = [_game_row(row, review_evidence) for row in cast(list[dict[str, object]], risk_candidates.to_dict(orient="records"))]
+    success_examples, success_without = _split_review_backed_games(success_rows)
+    risk_examples, risk_without = _split_review_backed_games(risk_rows)
     return {
-        "success_examples": [_game_row(row, review_evidence) for row in cast(list[dict[str, object]], success_examples.to_dict(orient="records"))],
-        "risk_examples": [_game_row(row, review_evidence) for row in cast(list[dict[str, object]], risk_examples.to_dict(orient="records"))],
-        "success_average": _group_average(success_examples),
-        "risk_average": _group_average(risk_examples),
+        "success_examples": success_examples,
+        "risk_examples": risk_examples,
+        "success_without_review_evidence": success_without,
+        "risk_without_review_evidence": risk_without,
+        "success_average": _group_average(success_candidates),
+        "risk_average": _group_average(risk_candidates),
     }
+
+
+def _split_review_backed_games(rows: list[dict[str, object]]) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    backed: list[dict[str, object]] = []
+    without: list[dict[str, object]] = []
+    for row in rows:
+        evidence = cast(dict[str, object], row.get("review_evidence", {}))
+        if _int(evidence.get("sample_count", 0)) >= SETTINGS.reference_review_min_samples:
+            backed.append(row)
+        else:
+            without.append(row)
+    return backed, without
 
 
 def _game_catalog(data: pd.DataFrame, review_evidence: dict[int, dict[str, object]]) -> list[dict[str, object]]:
@@ -458,9 +522,9 @@ def _reference_reason(row: dict[str, object], evidence: dict[str, object]) -> st
 
 
 def _outcome_label(probability: float) -> str:
-    if probability >= 0.65:
+    if probability >= SETTINGS.outcome_success_probability_threshold:
         return "성공"
-    if probability >= 0.35:
+    if probability >= SETTINGS.outcome_mid_probability_threshold:
         return "중박"
     return "실패"
 
@@ -470,9 +534,9 @@ def _model_opinion(row: dict[str, object]) -> str:
     reviews = _int(row.get("total_reviews", 0))
     positive_rate = _float(row.get("positive_rate", 0))
     languages = _int(row.get("supported_language_count", 0))
-    if probability >= 0.65:
+    if probability >= SETTINGS.outcome_success_probability_threshold:
         return f"모델은 높은 긍정률({positive_rate:.1%})과 리뷰 규모({reviews:,}개)를 근거로 이 게임을 성공 패턴에 가깝게 봅니다. 지원 언어 {languages}개도 시장 확장성 신호입니다."
-    if probability >= 0.35:
+    if probability >= SETTINGS.outcome_mid_probability_threshold:
         return f"모델은 이 게임을 중간권 잠재력으로 봅니다. 긍정률({positive_rate:.1%})은 참고할 만하지만 리뷰 규모({reviews:,}개)와 상점 feature 조합을 함께 확인해야 합니다."
     return f"모델은 이 게임을 위험 사례로 봅니다. 리뷰 규모({reviews:,}개), 긍정률({positive_rate:.1%}), 상점 feature 조합이 성공 표본과 거리가 있습니다."
 
@@ -573,11 +637,11 @@ def _useful_topic_term(term: str) -> bool:
 
 
 def _trend_label(row: pd.Series) -> str:
-    if _int(row["game_count"]) < MIN_TREND_SAMPLE:
+    if _int(row["game_count"]) < SETTINGS.market_trend_min_sample:
         return "표본 부족"
-    if _float(row["average_prediction"]) >= 0.65 and _float(row["success_rate"]) >= 0.5:
+    if _float(row["average_prediction"]) >= SETTINGS.market_trend_prediction_threshold and _float(row["success_rate"]) >= SETTINGS.market_trend_success_rate_threshold:
         return "상승"
-    if _float(row["average_prediction"]) >= 0.4:
+    if _float(row["average_prediction"]) >= SETTINGS.market_flat_prediction_threshold:
         return "유지"
     return "하락"
 

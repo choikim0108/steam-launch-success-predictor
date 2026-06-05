@@ -14,6 +14,7 @@ class ProjectSettings:
     external_request_sleep_seconds: float = 0.15
     review_text_sample_size: int = 40
     review_texts_per_game: int = 100
+    reference_review_min_samples: int = 5
     review_timeline_page_size: int = 100
     review_timeline_max_reviews_per_game: int = 500
     country: str = "US"
@@ -33,6 +34,17 @@ class ProjectSettings:
     test_size_large_sample: float = 0.30
     test_size_small_sample: float = 0.40
     small_sample_cutoff: int = 20
+
+    # 리포트 해석 기준
+    market_trend_min_sample: int = 20
+    criteria_genre_min_sample: int = 20
+    criteria_category_min_sample: int = 30
+    criteria_smoothing_alpha: int = 10
+    market_trend_prediction_threshold: float = 0.65
+    market_trend_success_rate_threshold: float = 0.50
+    market_flat_prediction_threshold: float = 0.40
+    outcome_success_probability_threshold: float = 0.65
+    outcome_mid_probability_threshold: float = 0.35
 
     # 모델 후보 수와 주요 하이퍼파라미터
     use_logistic_regression: bool = True

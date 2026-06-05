@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from steam_success.config import SETTINGS
 from steam_success.market_insight import build_market_insight_payload
 
 
@@ -15,7 +16,12 @@ def write_market_insight_site(reports_dir: Path, dataset: pd.DataFrame, review_t
     payload = build_market_insight_payload(dataset, review_topics, feature_importance, review_samples)
     data_json = _script_json(payload)
     output = reports_dir / "market_insight_site.html"
-    output.write_text(HTML_TEMPLATE.replace("__PAYLOAD__", data_json), encoding="utf-8")
+    html = (
+        HTML_TEMPLATE.replace("__PAYLOAD__", data_json)
+        .replace("__SUCCESS_THRESHOLD__", f"{SETTINGS.outcome_success_probability_threshold:.0%}")
+        .replace("__MID_THRESHOLD__", f"{SETTINGS.outcome_mid_probability_threshold:.0%}")
+    )
+    output.write_text(html, encoding="utf-8")
     return output
 
 
@@ -100,7 +106,7 @@ a { color:var(--blue); }
 <div class="tab-shell"><nav class="tabs" aria-label="시장 인사이트 탭"><button class="tab-button active" data-tab="overview" type="button">시장 스냅샷</button><button class="tab-button" data-tab="planner" type="button">내 게임 진단</button><button class="tab-button" data-tab="risks" type="button">성공 레퍼런스</button><button class="tab-button" data-tab="evidence" type="button">판단 기준</button></nav></div>
 <section class="tab-panel active" id="tab-overview"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 먼저 전체 시장 규모, 성공 표본 비율, 장르/태그 방향을 보고 기획 후보를 좁힙니다.</p></div><section class="grid cols-3" id="summary"></section><section class="card"><h2>기획 인사이트 추천 엔진</h2><p class="muted" id="guidancePurpose"></p><div class="grid cols-3" id="guidanceCards"></div><h3>출시 전 체크리스트</h3><ul class="checklist" id="guidanceChecklist"></ul></section><section class="card"><h2>의미 모델·추천 신뢰도</h2><div id="semanticModel"></div></section><section class="grid cols-2"><div class="card"><h2>장르 트렌드</h2><div id="genreTrends"></div></div><div class="card"><h2>태그/기능 트렌드</h2><div id="tagTrends"></div></div></section></section>
 <section class="tab-panel" id="tab-planner"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 만들려는 장르/태그를 선택하고, 성공 참고 게임과 실패/주의 참고 게임을 같이 비교합니다.</p></div><section class="card"><h2>내 게임 기획 입력</h2><p class="muted">선택 전에는 전체 시장 평균을 기준으로 표시합니다. 가격/언어 수/출시월은 일부러 비워두어 사용자가 직접 입력한 값만 반영합니다.</p><div id="inputs"></div><div id="estimate" class="card"></div><div id="tagComboRecommendations" class="card combo-card"></div></section><section class="card"><h2>선택 조건 기반 참고 게임</h2><div id="selectedGames"></div></section></section>
-<section class="tab-panel" id="tab-evidence"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 모델이 어떤 요소를 중요하게 봤는지 확인하고 가격·언어·플랫폼 전략을 조정합니다.</p></div><section class="grid cols-2"><div class="card"><h2>모델 근거 feature importance</h2><div id="importance"></div></div><div class="card"><h2>성공/중박/실패 기준</h2><ul class="criteria-list"><li>성공: 65% 이상</li><li>중박: 35% 이상 65% 미만</li><li>실패: 35% 미만</li></ul><div id="comparison"></div></div></section></section>
+<section class="tab-panel" id="tab-evidence"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 모델이 어떤 요소를 중요하게 봤는지 확인하고 가격·언어·플랫폼 전략을 조정합니다.</p></div><section class="grid cols-2"><div class="card"><h2>모델 근거 feature importance</h2><div id="importance"></div></div><div class="card"><h2>성공/중박/실패 기준</h2><ul class="criteria-list"><li>성공: __SUCCESS_THRESHOLD__ 이상</li><li>중박: __MID_THRESHOLD__ 이상 __SUCCESS_THRESHOLD__ 미만</li><li>실패: __MID_THRESHOLD__ 미만</li></ul><div id="comparison"></div></div></section></section>
 <section class="tab-panel" id="tab-risks"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 비슷한 실패 사례와 부정 리뷰 키워드를 보고 출시 전 리스크 체크리스트를 만듭니다.</p></div><section class="grid cols-2"><div class="card"><h2>유사 성공작</h2><div id="successGames"></div></div><div class="card"><h2>유사 실패/위험 사례</h2><div id="riskGames"></div></div></section><section class="grid cols-2"><div class="card"><h2>개발 주의점</h2><div id="cautions"></div></div><div class="card"><h2>외부 데이터 상태</h2><div id="external"></div></div></section></section>
 </main>
 <div id="gameModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="gameDetailTitle"><div class="modal-panel"><div id="gameDetail"></div><div class="modal-actions"><a id="steamDetailLink" class="button-link" target="_blank" rel="noreferrer">Steam 페이지 열기</a><button class="ghost-button" onclick="closeGameDetail()">닫기</button></div></div></div>
@@ -156,6 +162,8 @@ function renderSemanticModel() {
   clear(target);
   const semantic = payload.semantic_model || {};
   add(target, node('p', `전체 추천 신뢰도: ${semantic.confidence?.label || '낮음'} · ${semantic.confidence?.basis || '데이터 보유량 기준'}`, 'muted'));
+  const coverage = semantic.confidence?.coverage || {};
+  add(target, node('p', `모집단 coverage: ${coverage.status || '모집단 coverage 데이터 부족'} · 분석 ${num(coverage.modeled_games || 0)}개 / 후보 ${num(coverage.release_window_candidates || 0)}개`, 'muted'));
   const layout = add(target, node('div', '', 'grid cols-3'));
   [['비즈니스 모델', semantic.business_models], ['출시 상태', semantic.lifecycles], ['제작 맥락', semantic.production_contexts]].forEach(([title, rows]) => {
     const card = add(layout, node('div', '', 'card'));
@@ -190,15 +198,11 @@ function renderInputs() {
   const inputs = payload.developer_inputs;
   const target = document.getElementById('inputs');
   clear(target);
-  heading(target, '메인 장르/세부 장르');
-  renderImpactChips(target, 'genres', inputs.genres || []);
-  if (!(inputs.genres || []).length) add(target, node('p', '장르 데이터 부족', 'muted'));
-  heading(target, '시장/출시 전략 태그');
-  renderImpactChips(target, 'strategy_tags', inputs.strategy_tags || []);
-  if (!(inputs.strategy_tags || []).length) add(target, node('p', '전략 태그 데이터 부족', 'muted'));
-  heading(target, 'Steam 태그/기능');
-  renderImpactChips(target, 'tags', inputs.tags || []);
-  if (!(inputs.tags || []).length) add(target, node('p', '태그 데이터 부족', 'muted'));
+  (inputs.input_groups || [
+    {key:'genres', title:'메인 장르/세부 장르', options:inputs.genres || [], initial_visible:12, searchable:true, show_more:true},
+    {key:'strategy_tags', title:'시장/출시 전략 태그', options:inputs.strategy_tags || [], initial_visible:8, searchable:true, show_more:true},
+    {key:'tags', title:'Steam 태그/기능', options:inputs.tags || [], initial_visible:12, searchable:true, show_more:true}
+  ]).filter(group => group.key !== 'checkbox_fields').forEach(renderInputGroup);
   heading(target, '상세 기획');
   const optimizeButton = add(target, node('button', '선택 조건 최적화', 'ghost-button'));
   optimizeButton.id = 'maximizePlanButton';
@@ -207,8 +211,48 @@ function renderInputs() {
   numeric(target, 'price', '가격', '');
   numeric(target, 'languages', '언어 수', '');
   numeric(target, 'month', '출시월', '', '1', '12');
-  const labels = {platform_windows:'Windows', platform_mac:'Mac', platform_linux:'Linux', has_multiplayer:'멀티플레이', supports_controller:'컨트롤러', supports_achievements:'도전과제'};
+  const labels = {platform_windows:'Windows', platform_mac:'Mac', platform_linux:'Linux', has_multiplayer:'멀티플레이', supports_controller:'컨트롤러', supports_achievements:'도전과제', has_singleplayer:'싱글플레이', is_free:'무료 플레이', supports_cloud:'Steam Cloud', steam_deck_verified:'Steam Deck', supports_vr:'VR'};
   (inputs.checkbox_fields || []).forEach(field => checkbox(target, field, 'true', labels[field] || field));
+}
+function renderInputGroup(group) {
+  const target = document.getElementById('inputs');
+  heading(target, group.title);
+  const wrapper = add(target, node('div', '', 'input-group'));
+  wrapper.dataset.inputGroup = group.key;
+  if (group.searchable) {
+    const search = add(wrapper, node('input'));
+    search.type = 'search';
+    search.placeholder = `${group.title} 검색`;
+    search.oninput = () => filterInputGroup(group.key, search.value);
+  }
+  const options = group.options || [];
+  const visible = Number(group.initial_visible || options.length);
+  renderImpactChips(wrapper, group.key, options.slice(0, visible));
+  if (!options.length) add(wrapper, node('p', `${group.title} 데이터 부족`, 'muted'));
+  if (group.show_more) {
+    const button = add(wrapper, node('button', '더보기', 'ghost-button'));
+    button.type = 'button';
+    button.onclick = () => showMoreInputGroup(group.key);
+  }
+}
+function filterInputGroup(key, query) {
+  const group = (payload.developer_inputs.input_groups || []).find(item => item.key === key);
+  const wrapper = document.querySelector(`[data-input-group="${key}"]`);
+  if (!group || !wrapper) return;
+  const row = wrapper.querySelector('.chip-row');
+  if (row) row.remove();
+  const matched = (group.options || []).filter(value => String(value).toLowerCase().includes(String(query || '').toLowerCase()));
+  renderImpactChips(wrapper, key, matched.slice(0, Number(group.initial_visible || matched.length)));
+  updateChips(probabilityFor(selectedTerms()));
+}
+function showMoreInputGroup(key) {
+  const group = (payload.developer_inputs.input_groups || []).find(item => item.key === key);
+  const wrapper = document.querySelector(`[data-input-group="${key}"]`);
+  if (!group || !wrapper) return;
+  const row = wrapper.querySelector('.chip-row');
+  if (row) row.remove();
+  renderImpactChips(wrapper, key, group.options || []);
+  updateChips(probabilityFor(selectedTerms()));
 }
 function checkbox(parent, name, value, labelText) {
   const label = add(parent, node('label'));
@@ -484,6 +528,15 @@ function renderGames() {
   const riskGrid = add(risk, node('div', '', 'reference-grid'));
   (payload.similar_games.success_examples || []).forEach(game => addGameCard(successGrid, game));
   (payload.similar_games.risk_examples || []).forEach(game => addGameCard(riskGrid, game));
+  renderNoEvidenceReferences(success, payload.similar_games.success_without_review_evidence || []);
+  renderNoEvidenceReferences(risk, payload.similar_games.risk_without_review_evidence || []);
+}
+function renderNoEvidenceReferences(target, games) {
+  if (!games.length) return;
+  heading(target, '리뷰 근거 없는 참고');
+  add(target, node('p', '리뷰 본문 표본이 5개 미만이라 모델 지표와 Steam 메타데이터만 참고합니다.', 'muted'));
+  const grid = add(target, node('div', '', 'reference-grid'));
+  games.forEach(game => addGameCard(grid, game));
 }
 function renderCautions() {
   const rec = payload.recommendations;

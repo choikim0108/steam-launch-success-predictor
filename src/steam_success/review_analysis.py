@@ -93,6 +93,51 @@ def select_review_games(dataset: pd.DataFrame, settings: ProjectSettings = SETTI
     return result.head(settings.review_text_sample_size)
 
 
+
+def select_reference_review_games(dataset: pd.DataFrame, limit_per_group: int = 8) -> pd.DataFrame:
+    if dataset.empty:
+        return pd.DataFrame(columns=["appid", "name", "success", "predicted_success_probability", "total_reviews", "reference_group"])
+    sorted_dataset = dataset.sort_values(by="predicted_success_probability", ascending=False)
+    success_rows = cast(pd.DataFrame, sorted_dataset[sorted_dataset["success"].map(_as_int) == 1]).head(limit_per_group).copy()
+    risk_rows = cast(pd.DataFrame, sorted_dataset[sorted_dataset["success"].map(_as_int) == 0]).tail(limit_per_group).copy()
+    success_rows["reference_group"] = "success"
+    risk_rows["reference_group"] = "risk"
+    columns = ["appid", "name", "success", "predicted_success_probability", "total_reviews", "reference_group"]
+    selected = pd.concat([success_rows, risk_rows], ignore_index=True) if not success_rows.empty or not risk_rows.empty else pd.DataFrame(columns=columns)
+    for column in columns:
+        if column not in selected.columns:
+            selected[column] = ""
+    return cast(pd.DataFrame, selected[columns]).drop_duplicates("appid")
+
+
+def append_review_samples(existing: pd.DataFrame, new_samples: pd.DataFrame) -> pd.DataFrame:
+    if existing.empty:
+        return new_samples.copy()
+    if new_samples.empty:
+        return existing.copy()
+    combined = pd.concat([existing, new_samples], ignore_index=True)
+    if {"appid", "review_id"}.issubset(combined.columns):
+        review_ids = cast(pd.Series, combined["review_id"]).fillna("").astype(str).str.strip()
+        with_ids = cast(pd.DataFrame, combined[review_ids != ""]).drop_duplicates(["appid", "review_id"], keep="first")
+        without_ids = cast(pd.DataFrame, combined[review_ids == ""]).drop_duplicates(keep="first")
+        return pd.concat([without_ids, with_ids], ignore_index=True)
+    return cast(pd.DataFrame, combined.drop_duplicates(keep="first"))
+
+
+def _coalesce_merged_column(data: pd.DataFrame, column: str) -> None:
+    left = f"{column}_x"
+    right = f"{column}_y"
+    if column in data.columns:
+        return
+    if right in data.columns and left in data.columns:
+        data[column] = cast(pd.Series, data[right]).fillna(cast(pd.Series, data[left]))
+        return
+    if right in data.columns:
+        data[column] = data[right]
+        return
+    if left in data.columns:
+        data[column] = data[left]
+
 def _clean_text(text: object) -> str:
     value = re.sub(r"https?://\S+", " ", str(text).lower())
     value = re.sub(r"[^a-z0-9가-힣 ]+", " ", value)
@@ -125,15 +170,24 @@ def analyze_review_topics(dataset: pd.DataFrame, reviews: pd.DataFrame, reports_
         empty.to_csv(reports_dir / "review_topic_summary.csv", index=False)
         return {"top_genres": high_success_genres(dataset), "summary": []}
     selected = select_review_games(dataset)
-    merged = cast(pd.DataFrame, reviews.merge(selected, on="appid", how="inner"))
+    reference_targets = select_reference_review_games(dataset)
+    sample_targets = pd.concat([selected, reference_targets], ignore_index=True).drop_duplicates("appid")
+    merged = cast(pd.DataFrame, reviews.merge(sample_targets, on="appid", how="inner"))
     review_text = cast(pd.Series, merged["review_text"])
     merged = cast(pd.DataFrame, merged[review_text.fillna("").str.len() > 0].copy())
+    _coalesce_merged_column(merged, "name")
+    _coalesce_merged_column(merged, "success")
+    _coalesce_merged_column(merged, "matched_genres")
+    if "matched_genres" not in merged.columns:
+        merged["matched_genres"] = ""
+    merged["matched_genres"] = cast(pd.Series, merged["matched_genres"]).fillna("")
     voted_up = cast(pd.Series, merged["voted_up"])
     merged["review_sentiment"] = voted_up.map(lambda value: "positive" if bool(value) else "negative")
+    topic_merged = cast(pd.DataFrame, merged[cast(pd.Series, merged["matched_genres"]).astype(str).str.len() > 0])
     rows: list[dict[str, object]] = []
     for genre in high_success_genres(dataset):
-        matched_genres = cast(pd.Series, merged["matched_genres"])
-        genre_reviews = cast(pd.DataFrame, merged[matched_genres.str.contains(genre, regex=False, na=False)])
+        matched_genres = cast(pd.Series, topic_merged["matched_genres"])
+        genre_reviews = cast(pd.DataFrame, topic_merged[matched_genres.str.contains(genre, regex=False, na=False)])
         for success_value, game_label in [(1, "success"), (0, "failure")]:
             game_reviews = genre_reviews[genre_reviews["success"] == success_value]
             for sentiment in ["positive", "negative"]:
@@ -145,7 +199,13 @@ def analyze_review_topics(dataset: pd.DataFrame, reviews: pd.DataFrame, reports_
                     "review_count": int(len(subset)),
                     "top_terms": _keywords(cast(pd.Series, subset["review_text"])),
                 })
-    summary = pd.DataFrame(rows)
+    summary = pd.DataFrame(rows, columns=["genre", "game_success", "review_sentiment", "review_count", "top_terms"])
     summary.to_csv(reports_dir / "review_topic_summary.csv", index=False)
-    merged[["appid", "name", "matched_genres", "success", "voted_up", "playtime_hours", "review_text"]].to_csv(reports_dir / "review_samples.csv", index=False)
+    sample_columns = ["appid", "name", "matched_genres", "success", "voted_up", "playtime_hours", "review_text"]
+    if "review_id" in merged.columns:
+        sample_columns.insert(1, "review_id")
+    new_samples = cast(pd.DataFrame, merged[sample_columns])
+    existing_path = reports_dir / "review_samples.csv"
+    existing = pd.read_csv(existing_path) if existing_path.exists() else pd.DataFrame()
+    append_review_samples(existing, new_samples).to_csv(existing_path, index=False)
     return {"top_genres": high_success_genres(dataset), "summary": _records(summary)}

@@ -12,7 +12,7 @@ from steam_success.models.train import train_and_evaluate
 from steam_success.market_report import write_market_insight_site
 from steam_success.preprocess.dataset import build_modeling_dataset
 from steam_success.reporting import summarize_pdf, write_architecture_doc, write_assumptions_doc, write_manual_doc, write_run_summary, write_workspace_docs_index
-from steam_success.review_analysis import analyze_review_topics, select_review_games
+from steam_success.review_analysis import analyze_review_topics, select_reference_review_games, select_review_games
 from steam_success.web_report import write_interactive_report
 from steam_success.visualize.charts import make_charts
 
@@ -33,7 +33,7 @@ def run(root: Path, max_apps: int | None = None) -> None:
     result = train_and_evaluate(dataset, paths.models, paths.reports, settings=SETTINGS)
     predictions = pd.read_csv(paths.reports / "predictions.csv")[["appid", "predicted_success_probability"]]
     dataset = dataset.merge(predictions, on="appid", how="left")
-    review_targets = select_review_games(dataset, settings=SETTINGS)
+    review_targets = pd.concat([select_review_games(dataset, settings=SETTINGS), select_reference_review_games(dataset)], ignore_index=True).drop_duplicates("appid")
     review_texts = fetch_review_texts(review_targets["appid"].astype(int).tolist(), paths.data_raw, collected["config"], SETTINGS.review_texts_per_game)
     review_analysis = analyze_review_topics(dataset, review_texts, paths.reports)
     review_samples = pd.read_csv(paths.reports / "review_samples.csv") if (paths.reports / "review_samples.csv").exists() else pd.DataFrame()
