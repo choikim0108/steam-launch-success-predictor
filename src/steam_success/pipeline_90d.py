@@ -98,7 +98,6 @@ def run(root: Path, windows_csv: Path | None = None, release_window_csv: Path | 
     for name, table in build_criteria_tables(dataset).items():
         table.to_csv(reports_dir / f"criteria_{name}.csv", index=False)
     predictions = pd.read_csv(reports_dir / "predictions.csv")
-    predictions.to_csv(paths.reports / "predictions_90d.csv", index=False)
     dataset = dataset.merge(predictions[["appid", "predicted_success_probability"]], on="appid", how="left")
     feature_importance = pd.read_csv(reports_dir / "feature_importance.csv")
     chart_paths = make_charts(dataset, feature_importance, figures_dir, {"summary": []})

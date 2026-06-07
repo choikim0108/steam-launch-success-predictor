@@ -35,7 +35,7 @@ def run(
     page_size: int,
 ) -> Path:
     paths = ProjectPaths.from_root(root)
-    resolved_input = input_csv if input_csv is not None else paths.data_raw / "steam_search_crawl.csv"
+    resolved_input = input_csv if input_csv is not None else paths.data_interim / "search_release_window_appids.csv"
     selected_appids = _appid_list(resolved_input, max_apps, appids)
     config = CrawlConfig(
         max_apps=len(selected_appids),
@@ -62,7 +62,7 @@ def run(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Collect Steam review pages with timestamps for 7/30/90 day metrics.")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[3])
-    parser.add_argument("--input-csv", type=Path, default=None, help="CSV with an appid column. Defaults to data/raw/steam_search_crawl.csv")
+    parser.add_argument("--input-csv", type=Path, default=None, help="CSV with an appid column. Defaults to data/interim/search_release_window_appids.csv")
     parser.add_argument("--appid", type=int, action="append", dest="appids", help="Collect one appid. Can be repeated.")
     parser.add_argument("--max-apps", type=int, default=None, help="Limit appids loaded from the input CSV.")
     parser.add_argument("--max-reviews-per-game", type=int, default=SETTINGS.review_timeline_max_reviews_per_game)

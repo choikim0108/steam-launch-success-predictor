@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pandas as pd
 
-from steam_success.preprocess.review_windows import build_review_windows
+from steam_success.preprocess.review_windows import build_review_windows, run
 
 
 def _unix(day: str) -> int:
@@ -61,6 +63,16 @@ class ReviewWindowsTests(unittest.TestCase):
 
         self.assertEqual(result.iloc[0]["reviews_90d"], 910)
         self.assertFalse(result.iloc[0]["success_90d"])
+
+    def test_run_fails_when_histogram_csv_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            candidates_dir = root / "data" / "interim"
+            candidates_dir.mkdir(parents=True)
+            pd.DataFrame([{"appid": 1, "release_date_text": "Jan 1, 2025", "label_eligible_90d": True}]).to_csv(candidates_dir / "game_candidates_2025_2026.csv", index=False)
+
+            with self.assertRaises(FileNotFoundError):
+                run(root, None, None, "game_review_windows_2025_2026.csv")
 
 
 if __name__ == "__main__":

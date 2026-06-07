@@ -21,7 +21,7 @@ def _truthy(series: pd.Series) -> pd.Series:
 
 def _bucket_date(value: object) -> pd.Timestamp | pd.NaT:
     try:
-        unix_value = int(value)
+        unix_value = int(str(value))
     except (TypeError, ValueError):
         return pd.NaT
     if unix_value <= 0:
@@ -93,7 +93,9 @@ def run(root: Path, candidates_csv: Path | None, histogram_csv: Path | None, out
     resolved_candidates = candidates_csv if candidates_csv is not None else paths.data_interim / "game_candidates_2025_2026.csv"
     resolved_histogram = histogram_csv if histogram_csv is not None else paths.data_raw / "steam_review_histogram.csv"
     candidates = pd.read_csv(resolved_candidates)
-    histogram = pd.read_csv(resolved_histogram) if resolved_histogram.exists() else pd.DataFrame()
+    if not resolved_histogram.exists():
+        raise FileNotFoundError(f"Histogram CSV not found: {resolved_histogram}")
+    histogram = pd.read_csv(resolved_histogram)
     windows = build_review_windows(candidates, histogram)
     output = paths.data_interim / output_name
     windows.to_csv(output, index=False)

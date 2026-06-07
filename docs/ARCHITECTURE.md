@@ -135,10 +135,12 @@ activity_score
 data/raw/steam_review_timeline.csv
 data/interim/search_release_window_appids.csv
 data/interim/game_candidates_2025_2026.csv
-data/interim/review_windows.csv
+data/interim/game_review_windows_2025_2026.csv
 data/processed/modeling_dataset_90d.csv
-reports/model_metrics_90d.json
-reports/predictions_90d.csv
-reports/RUN_SUMMARY_90D.md
+reports/90d/model_metrics.json
+reports/90d/model_metrics.csv
+reports/90d/predictions.csv
+reports/90d/RUN_SUMMARY.md
+reports/90d/market_insight_site.html
 models/steam_success_90d_model.joblib
 ```

@@ -258,6 +258,19 @@ def write_workspace_docs_index(root: Path, docs_dir: Path) -> None:
     (docs_dir / "WORKSPACE_DOCUMENTS.md").write_text(text, encoding="utf-8")
 
 
+def _report_display_path(path: Path, reports_dir: Path) -> str:
+    base = reports_dir.parent
+    current = reports_dir
+    while current.name and current.name != "reports" and current.parent != current:
+        current = current.parent
+    if current.name == "reports":
+        base = current.parent
+    try:
+        return path.relative_to(base).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
 def write_run_summary(reports_dir: Path, dataset: pd.DataFrame, result: dict[str, object], chart_paths: list[Path]) -> None:
     metrics = pd.read_csv(reports_dir / "model_metrics.csv")
     best_row = metrics.sort_values(["f1", "recall", "accuracy"], ascending=False).iloc[0].to_dict()
@@ -299,8 +312,8 @@ def write_run_summary(reports_dir: Path, dataset: pd.DataFrame, result: dict[str
     text += ["", "## 장르별 결론 상위 항목"]
     text += [f"- {row['criteria_value']}: 성공 {_as_int(row['success_count'])}개 / 전체 {_as_int(row['game_count'])}개, 성공률 {_as_float(row['success_rate']):.1%} (n={_as_int(row['game_count'])})" for row in _records(_rank_eligible_rows(genre_summary).head(8))]
     text += ["", "## 생성 차트"]
-    text += [f"- `{path.relative_to(reports_dir.parent)}`" for path in chart_paths]
-    text += ["", "## 결론 위치", "- 상세 결론과 해석 주의사항은 `reports/CONCLUSIONS.md`에 저장했다."]
+    text += [f"- `{_report_display_path(path, reports_dir)}`" for path in chart_paths]
+    text += ["", "## 결론 위치", f"- 상세 결론과 해석 주의사항은 `{_report_display_path(conclusion_path, reports_dir)}`에 저장했다."]
     text += ["", "## 해석 주의", "- 이 결과는 Steam `popularnew` 검색 노출 샘플 기반이므로 전체 Steam 시장의 무작위 표본은 아니다. 성공/실패 비율은 모델 학습용 라벨 분포이지 실제 시장 성공률로 해석하면 안 된다."]
     (reports_dir / "RUN_SUMMARY.md").write_text("\n".join(text) + "\n", encoding="utf-8")
 
