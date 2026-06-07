@@ -315,11 +315,15 @@ function tagComboCandidates() {
       combos.set(key, previous);
     });
   });
+  const minimum = strongRecommendationMinimumSample();
   return Array.from(combos.values())
     .filter(row => row.sample >= 2)
-    .map(row => ({combo:row.combo, sample:row.sample, probability:row.probabilitySum / row.sample, successRate:row.successSum / row.sample}))
-    .sort((a, b) => b.probability - a.probability || b.sample - a.sample)
+    .map(row => ({combo:row.combo, sample:row.sample, probability:row.probabilitySum / row.sample, successRate:row.successSum / row.sample, eligible:row.sample >= minimum}))
+    .sort((a, b) => Number(b.eligible) - Number(a.eligible) || b.probability - a.probability || b.sample - a.sample)
     .slice(0, 8);
+}
+function strongRecommendationMinimumSample() {
+  return Number(payload.developer_guidance?.minimum_recommendation_sample || 20);
 }
 function optimizePlanningInputs() {
   const baseTerms = selectedTerms();
@@ -354,7 +358,18 @@ function renderTagComboRecommendations() {
     add(target, node('p', '현재 선택 장르에서는 표본 2개 이상인 태그 조합이 부족합니다. 더 넓은 장르를 선택해보세요.', 'muted'));
     return;
   }
-  add(target, table(['추천 태그 조합','평균 예측','성공률','표본'], combos.map(row => [row.combo, pct(row.probability), pct(row.successRate), row.sample])));
+  const strong = combos.filter(row => row.eligible);
+  const exploratory = combos.filter(row => !row.eligible);
+  heading(target, '충분 표본 기반 추천');
+  if (strong.length) {
+    add(target, table(['추천 태그 조합','평균 예측','성공률','표본'], strong.map(row => [row.combo, pct(row.probability), pct(row.successRate), row.sample])));
+  } else {
+    add(target, node('p', `현재 선택 장르에서는 표본 ${strongRecommendationMinimumSample()}개 이상인 조합이 없어 강한 추천을 하지 않습니다.`, 'muted'));
+  }
+  if (exploratory.length) {
+    heading(target, '탐색 후보 / 표본 부족');
+    add(target, table(['탐색 태그 조합','평균 예측','성공률','표본'], exploratory.map(row => [row.combo, pct(row.probability), pct(row.successRate), row.sample])));
+  }
 }
 function probabilityFor(terms) {
   if (!terms.length) return Number(payload.summary.average_prediction || 0);
@@ -604,10 +619,31 @@ function estimate() {
   clear(target);
   add(target, node('h3', '선택 기획 잠재력'));
   add(target, node('span', pct(probability), 'metric'));
-  add(target, node('p', `기획 입력 반영: 선택한 장르/태그 ${terms.length}개, 매칭 게임 ${matchedGames.length}개, 가격, 언어 수, 출시월, 플랫폼/멀티플레이/컨트롤러/도전과제 선택값을 학습 데이터의 평균 예측값에 반영했습니다.`, 'muted'));
+  renderFourPartDiagnosis(target, {terms, matchedGames, probability, price, languages, releaseMonth, checkedDetails});
   renderTagComboRecommendations();
   renderSelectedGames(matchedGames);
   updateChips(base);
+}
+function renderFourPartDiagnosis(target, context) {
+  const games = context.matchedGames || [];
+  const enoughSample = games.length >= strongRecommendationMinimumSample();
+  const successGames = games.filter(game => game.outcome_label === '성공').length;
+  const riskGames = games.filter(game => game.outcome_label !== '성공').length;
+  const action = enoughSample
+    ? `표본 ${games.length}개 기준으로 성공 참고작 ${successGames}개와 위험 사례 ${riskGames}개를 비교하고, 가격 ${context.price || '미입력'}, 언어 ${context.languages || '미입력'}개, 출시월 ${context.releaseMonth || '미입력'} 조건을 조정하세요.`
+    : `매칭 표본 ${games.length}개는 강한 추천 기준 ${strongRecommendationMinimumSample()}개 미만입니다. 장르/태그 조건을 넓힌 뒤 참고작을 먼저 비교하세요.`;
+  const cards = [
+    ['성공 가능성', `기획 입력 반영: ${pct(context.probability)} · 선택 장르/태그 ${context.terms.length}개 반영`],
+    ['비교군', enoughSample ? `매칭 게임 ${games.length}개 · 성공 참고 ${successGames}개` : `매칭 게임 ${games.length}개 · 탐색 후보 / 표본 부족`],
+    ['위험', riskGames ? `위험 사례 ${riskGames}개와 부정 리뷰 키워드를 먼저 확인하세요.` : '현재 조건에서 명확한 위험 비교군이 부족합니다.'],
+    ['액션 제안', action],
+  ];
+  const layout = add(target, node('div', '', 'grid cols-2'));
+  cards.forEach(([title, body]) => {
+    const card = add(layout, node('div', '', 'card'));
+    add(card, node('b', title));
+    add(card, node('p', body, title === '위험' ? 'risk' : 'muted'));
+  });
 }
 function updateInterface() {
   estimate();

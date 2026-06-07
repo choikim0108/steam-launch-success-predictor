@@ -578,6 +578,20 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertIn("semanticProfileText", html)
         self.assertIn("항목별 신뢰도", html)
 
+    def test_static_html_renders_four_part_developer_diagnosis_and_sample_gated_recommendations(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = write_market_insight_site(Path(temp_dir), sample_dataset(), pd.DataFrame())
+            html = output.read_text(encoding="utf-8")
+
+        self.assertIn("renderFourPartDiagnosis", html)
+        self.assertIn("성공 가능성", html)
+        self.assertIn("비교군", html)
+        self.assertIn("위험", html)
+        self.assertIn("액션 제안", html)
+        self.assertIn("strongRecommendationMinimumSample", html)
+        self.assertIn("충분 표본 기반 추천", html)
+        self.assertIn("탐색 후보 / 표본 부족", html)
+
     def test_static_html_contains_tabs_balanced_cards_images_and_explanations(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             output = write_market_insight_site(Path(temp_dir), sample_dataset(), pd.DataFrame(), sample_feature_importance())

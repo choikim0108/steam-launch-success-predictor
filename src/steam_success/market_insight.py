@@ -188,6 +188,7 @@ def _developer_guidance(data: pd.DataFrame, genres: list[dict[str, object]], tag
     return {
         "name": "기획 인사이트 추천 엔진",
         "purpose": "성공확률을 설명 가능한 개발 액션으로 바꾸는 보조 모델",
+        "minimum_recommendation_sample": SETTINGS.market_trend_min_sample,
         "cards": cards,
         "checklist": ["상승 장르/태그에서 핵심 루프 검증", "하락 조합은 차별화와 가격 저항 검증", "성공 레퍼런스 3개와 위험 레퍼런스 3개 리뷰 비교", "출시 전 언어 수와 Steam 기능 지원 범위 결정"],
     }
