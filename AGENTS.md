@@ -22,11 +22,11 @@
 - 생성 산출물은 `reports/`, 설명 문서는 `docs/`, 원천 데이터는 `data/raw/`에 둔다.
 - Steam 상점 검색 크롤링은 429 방지를 위해 기본 sleep, retry/backoff, 페이지별 raw 저장, checkpoint CSV 갱신을 유지한다.
 - 루트의 과제 PDF, WBS, CSV, XLSX 원본 자료는 참조 경로 보존을 위해 이동하지 않는다.
-- `reports/interactive_report.html`에는 최종 질문인 "그래서 성공할 것으로 예측되는 게임은 뭔가?"에 대한 답과 Steam 링크가 포함되어야 한다.
+- `reports/90d/interactive_report.html`에는 최종 질문인 "그래서 성공할 것으로 예측되는 게임은 뭔가?"에 대한 답과 Steam 링크가 포함되어야 한다.
 
 ## 검증 기준
 - 코드 변경 후 `PYTHONPATH=src python -m compileall src tests`를 실행한다.
 - 테스트 변경 후 `PYTHONPATH=src python -m unittest discover -s tests`를 실행한다.
 - 수집 CLI 변경 후 `steam_success.collect.search_release_window --max-pages 2` smoke test를 temp root에서 실행한다.
 - 기존 `run_pipeline.py`는 현재 누적 리뷰 기준 레거시 흐름이므로 90일 수집 검증으로 사용하지 않는다.
-- HTML 변경은 `reports/interactive_report.html`을 실제로 열거나 파싱해서 결론, Steam 링크, 이미지 경로가 존재하는지 확인한다.
+- HTML 변경은 `reports/90d/interactive_report.html` 또는 `reports/90d/market_insight_site.html`을 실제로 열거나 파싱해서 결론, Steam 링크, 이미지 경로가 존재하는지 확인한다.

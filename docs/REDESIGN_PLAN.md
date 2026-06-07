@@ -137,7 +137,7 @@ success_90d_relative =
 
 ## 6. 정적 HTML 웹사이트 설계
 
-최종 HTML은 `reports/market_insight_site.html`로 생성한다.
+최종 90일 HTML은 `reports/90d/market_insight_site.html`로 생성한다.
 
 필수 화면:
 
@@ -247,7 +247,7 @@ success_90d_relative =
 
 ### Phase 5. 정적 HTML 생성
 
-- `reports/market_insight_site.html` 생성기를 만든다.
+- `reports/90d/market_insight_site.html` 생성기를 만든다.
 - 데이터 payload는 CSV/JSON 결과에서 생성한다.
 - HTML 내부 JS는 미리 생성된 payload를 필터링하고 계산한다.
 - 값은 코드에 고정하지 않고 결과 파일에서 읽는다.
@@ -267,7 +267,7 @@ success_90d_relative =
 
 - 조건: 사용자가 충분한 데이터가 있는 장르/태그 조합을 선택한다.
 - 통과 조건: HTML이 성공 확률, 유사 성공작/실패작, 장르 트렌드, 리뷰 주의점을 표시한다.
-- 검증 표면: 브라우저에서 `reports/market_insight_site.html` 열기.
+- 검증 표면: 브라우저에서 `reports/90d/market_insight_site.html` 열기.
 - 테스트 후보: 정적 payload 생성 테스트 + HTML 파싱 테스트.
 
 ### 시나리오 2: 외부 데이터 부족 edge
@@ -300,9 +300,9 @@ success_90d_relative =
 | 중간 병합 데이터 | `data/interim/` |
 | 학습 데이터 | `data/processed/` |
 | 모델 파일 | `models/` |
-| 최종 HTML | `reports/market_insight_site.html` |
-| 발표용 기존 UX 참고 | `reports/experience_scenario.html` |
-| 최종 실행 요약 | `reports/RUN_SUMMARY.md` |
+| 최종 90일 HTML | `reports/90d/market_insight_site.html` |
+| 발표용 기존 UX 참고 | `legacy/current_snapshot/reports/experience_scenario.html` |
+| 최종 90일 실행 요약 | `reports/90d/RUN_SUMMARY.md` |
 
 ## 11. 승인 후 바로 진행할 구현 범위
 

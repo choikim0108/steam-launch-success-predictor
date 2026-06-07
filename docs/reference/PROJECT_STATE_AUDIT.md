@@ -44,7 +44,8 @@ legacy/current_snapshot/docs/ASSUMPTIONS_AND_QUESTIONS.md
 docs/DATA_COLLECTION_RUNBOOK.md
 docs/reference/DEVELOPER_AND_USER_EXPERIENCE.md
 docs/TEAM_PROJECT_PLAN.md
-reports/experience_scenario.html
+reports/90d/market_insight_site.html
+reports/90d/interactive_report.html
 ```
 
 ## 아직 레거시 기준이 남아 있는 코드

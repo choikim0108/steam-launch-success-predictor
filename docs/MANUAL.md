@@ -76,14 +76,14 @@ python -m steam_success.preprocess.candidate_filter --start-year 2025 --end-year
 
 주의: 기존 현재 누적 리뷰 기준으로 생성된 초기 실행 결과는 `legacy/current_snapshot/`에 보존했다. 아래 경로는 파이프라인을 다시 실행하면 새로 생성되는 산출물 위치다.
 
-- 최종 실행 요약: `reports/RUN_SUMMARY.md`
-- 장르별 결론: `reports/CONCLUSIONS.md`
-- 모델 성능표: `reports/model_metrics.csv`
-- 게임별 예측 확률: `reports/predictions.csv`
-- 인터랙티브 HTML 리포트: `reports/interactive_report.html`
-- 시각화 이미지: `reports/figures/`
+- 90일 최종 실행 요약: `reports/90d/RUN_SUMMARY.md`
+- 90일 장르별 결론: `reports/90d/CONCLUSIONS.md`
+- 90일 모델 성능표: `reports/90d/model_metrics.csv`
+- 90일 게임별 예측 확률: `reports/90d/predictions.csv`
+- 90일 인터랙티브 HTML 리포트: `reports/90d/interactive_report.html`
+- 90일 시각화 이미지: `reports/90d/figures/`
 - 학습 데이터: `data/processed/modeling_dataset.csv`
-- 저장 모델: `models/steam_success_model.joblib`
+- 90일 저장 모델: `models/steam_success_90d_model.joblib`
 
 ## 6. 리뷰 timestamp 타임라인 수집
 출시 7일/30일/90일 리뷰 지표를 만들려면 리뷰 요약이 아니라 리뷰별 `timestamp_created`가 필요하다.
