@@ -42,13 +42,13 @@
 - Casual: 성공 225개 / 전체 10257개, 성공률 2.2% (n=10257)
 
 ## 생성 차트
-- `90d/figures/label_distribution.png`
-- `90d/figures/reviews_vs_positive_rate.png`
-- `90d/figures/feature_importance.png`
-- `90d/figures/analysis_workflow.png`
+- `reports/90d/figures/label_distribution.png`
+- `reports/90d/figures/reviews_vs_positive_rate.png`
+- `reports/90d/figures/feature_importance.png`
+- `reports/90d/figures/analysis_workflow.png`
 
 ## 결론 위치
-- 상세 결론과 해석 주의사항은 `reports/CONCLUSIONS.md`에 저장했다.
+- 상세 결론과 해석 주의사항은 `reports/90d/CONCLUSIONS.md`에 저장했다.
 
 ## 해석 주의
 - 이 결과는 Steam `popularnew` 검색 노출 샘플 기반이므로 전체 Steam 시장의 무작위 표본은 아니다. 성공/실패 비율은 모델 학습용 라벨 분포이지 실제 시장 성공률로 해석하면 안 된다.

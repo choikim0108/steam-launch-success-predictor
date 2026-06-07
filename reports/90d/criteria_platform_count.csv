@@ -1,0 +1,4 @@
+criteria,criteria_value,game_count,success_count,success_rate,smoothed_success_rate,rank_eligible,sample_status
+platform_count,2 platforms,2769,116,0.041892379920548936,0.04184347113141263,True,충분
+platform_count,3 platforms,1324,55,0.04154078549848943,0.04144153393867744,True,충분
+platform_count,1 platforms,18380,465,0.02529923830250272,0.025300870379238484,True,충분

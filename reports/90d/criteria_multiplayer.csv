@@ -1,0 +1,3 @@
+criteria,criteria_value,game_count,success_count,success_rate,smoothed_success_rate,rank_eligible,sample_status
+multiplayer,yes,3865,141,0.03648124191461837,0.03646013065140535,True,충분
+multiplayer,no,18608,495,0.02660146173688736,0.026602374383617775,True,충분

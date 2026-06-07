@@ -10,6 +10,7 @@ data/interim/
 data/processed/
 reports/figures/
 *.csv
+!reports/90d/*.csv
 *.xlsx
 *.pdf
 

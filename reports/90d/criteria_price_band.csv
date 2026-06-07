@@ -1,0 +1,6 @@
+criteria,criteria_value,game_count,success_count,success_rate,smoothed_success_rate,rank_eligible,sample_status
+price_band,30_to_60,317,55,0.17350157728706625,0.1690611812666535,True,충분
+price_band,10_to_30,3731,303,0.0812114714553739,0.08107003642721083,True,충분
+price_band,60_plus,101,6,0.0594059405940594,0.0566036601278892,True,충분
+price_band,free,3354,53,0.015802027429934407,0.01583918141325675,True,충분
+price_band,under_10,14970,219,0.014629258517034067,0.014638384931521742,True,충분

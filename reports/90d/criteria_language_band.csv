@@ -1,0 +1,5 @@
+criteria,criteria_value,game_count,success_count,success_rate,smoothed_success_rate,rank_eligible,sample_status
+language_band,16_30,939,84,0.08945686900958466,0.08881244075257713,True,충분
+language_band,6_15,5103,347,0.06799921614736429,0.0679215736894574,True,충분
+language_band,1_5,15788,200,0.01266784899923993,0.012677744415381423,True,충분
+language_band,31_plus,643,5,0.007776049766718507,0.008090361828783615,True,충분

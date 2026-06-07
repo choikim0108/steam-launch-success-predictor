@@ -16,12 +16,12 @@
 - `data/raw/`: Steam 검색 HTML, Store API, Reviews API 원천 수집 결과
 - `data/interim/`: 병합된 중간 데이터
 - `data/processed/`: 모델 학습용 데이터
-- `reports/`: CSV/JSON 평가 결과, 결론 Markdown, HTML 리포트
-- `reports/figures/`: HTML에 포함되는 최신 PNG 시각화
-- `models/`: 학습된 모델 파일
+- `reports/90d/`: 최종 90일 CSV/JSON 평가 결과, 결론 Markdown, HTML 리포트, 발표용 PNG 시각화
+- `models/steam_success_90d_model.joblib`: 최종 90일 제출 모델 파일
+- `models/`: 파이프라인 재실행 시 생성될 수 있는 모델 산출물 위치
 - `docs/`: 핵심 실행 문서
 - `docs/reference/`: 참고용 상세 문서, 과거 가이드, 질문 목록, PDF 요약
-- `legacy/current_snapshot/`: 현재 누적 리뷰 기준으로 생성된 초기 모델/리포트 보존본
+- `legacy/current_snapshot/`: 현재 누적 리뷰 기준 초기 모델/리포트 참고 보존본. 최종 90일 제출물에는 사용하지 않음
 
 ## 작업공간 루트 참고 자료
 - `dmP/1조 게임 (1).pdf`: 팀 프로젝트 참고 PDF
