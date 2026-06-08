@@ -56,8 +56,12 @@ main { width:min(1180px, calc(100% - 32px)); margin:22px auto 44px; }
 .warning { color:var(--yellow); font-weight:700; }
 .risk { color:var(--red); font-weight:700; }
 label { display:inline-block; margin:5px 10px 5px 0; }
-input[type="number"] { width:86px; padding:7px; border:1px solid var(--line); border-radius:10px; background:#0f172a; color:var(--ink); }
-table { width:100%; border-collapse:collapse; }
+input[type="number"], input[type="search"] { padding:9px 11px; border:1px solid var(--line); border-radius:12px; background:#0f172a; color:var(--ink); }
+input[type="number"] { width:86px; }
+input[type="search"] { width:min(340px,100%); margin:4px 0 10px; }
+:focus-visible { outline:3px solid rgba(96,165,250,.72); outline-offset:3px; }
+.table-wrap { width:100%; overflow-x:auto; }
+table { width:100%; border-collapse:collapse; min-width:620px; }
 th,td { border-bottom:1px solid var(--line); padding:8px; text-align:left; vertical-align:top; }
 a { color:var(--blue); }
 .bar-bg { height:16px; border-radius:999px; background:#e5e7eb; overflow:hidden; }
@@ -93,27 +97,45 @@ a { color:var(--blue); }
 .tab-panel { display:none; }
 .tab-panel.active { display:block; }
 .game-image { width:100%; aspect-ratio:2.18/1; object-fit:cover; border-radius:12px; margin-bottom:10px; background:rgba(148,163,184,.16); }
+.image-placeholder { width:100%; aspect-ratio:2.18/1; display:flex; align-items:center; justify-content:center; border:1px dashed var(--line); border-radius:12px; margin-bottom:10px; background:rgba(148,163,184,.08); color:var(--muted); font-size:13px; }
 .reference-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
-@media (max-width:900px) { .cols-2,.cols-3 { grid-template-columns:1fr; } }
+.planning-actions { display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; margin:12px 0 4px; }
+.action-links { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.action-link { border:1px solid var(--line); border-radius:999px; padding:8px 11px; background:rgba(96,165,250,.12); color:var(--ink); cursor:pointer; }
+.architecture-list { display:grid; gap:10px; padding-left:18px; }
+.reference-note { color:var(--muted); font-size:13px; margin-top:8px; }
+.opportunity-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; margin-top:12px; }
+.opportunity-card { border:1px solid rgba(148,163,184,.28); border-radius:20px; padding:18px; background:linear-gradient(180deg, rgba(30,41,70,.92), rgba(15,23,42,.86)); box-shadow:0 14px 38px rgba(0,0,0,.2); }
+.opportunity-card.exploratory { border-style:dashed; opacity:.86; }
+.opportunity-head { display:flex; gap:10px; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+.opportunity-head h3 { margin:0; font-size:18px; line-height:1.35; }
+.score-badge { flex:0 0 auto; border-radius:999px; padding:7px 10px; background:rgba(52,211,153,.16); color:var(--green); font-weight:800; font-size:13px; }
+.opportunity-meta { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:10px 0; }
+.meta-tile { border:1px solid var(--line); border-radius:14px; padding:10px; background:rgba(2,6,23,.28); }
+.meta-tile b { display:block; font-size:16px; }
+.evidence-list { margin:12px 0 0; padding-left:18px; color:#cbd5e1; }
+.evidence-list li { margin:5px 0; }
+.section-kicker { color:var(--muted); margin-top:-4px; }
+@media (max-width:900px) { .cols-2,.cols-3,.opportunity-meta { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
 <header>
 <h1>Steam 시장 트렌드·장르 잠재력 분석 도구</h1>
-<p>수집·학습한 Steam 데이터와 외부 지표를 기반으로 게임 개발자가 선택한 장르와 태그의 시장성, 성공 가능성, 개발 주의점을 확인하는 발표용 정적 HTML 웹사이트입니다.</p>
+<p>수집·학습한 Steam 데이터와 외부 지표를 기반으로 게임 개발자가 선택한 장르와 태그의 시장성, 기획 잠재력, 개발 주의점을 확인하는 발표용 정적 HTML 웹사이트입니다.</p>
 </header>
 <main>
-<div class="tab-shell"><nav class="tabs" aria-label="시장 인사이트 탭"><button class="tab-button active" data-tab="overview" type="button">시장 스냅샷</button><button class="tab-button" data-tab="planner" type="button">내 게임 진단</button><button class="tab-button" data-tab="risks" type="button">성공 레퍼런스</button><button class="tab-button" data-tab="evidence" type="button">판단 기준</button></nav></div>
-<section class="tab-panel active" id="tab-overview"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 먼저 전체 시장 규모, 성공 표본 비율, 장르/태그 방향을 보고 기획 후보를 좁힙니다.</p></div><section class="grid cols-3" id="summary"></section><section class="card"><h2>기획 인사이트 추천 엔진</h2><p class="muted" id="guidancePurpose"></p><div class="grid cols-3" id="guidanceCards"></div><h3>출시 전 체크리스트</h3><ul class="checklist" id="guidanceChecklist"></ul></section><section class="card"><h2>의미 모델·추천 신뢰도</h2><div id="semanticModel"></div></section><section class="grid cols-2"><div class="card"><h2>장르 트렌드</h2><div id="genreTrends"></div></div><div class="card"><h2>태그/기능 트렌드</h2><div id="tagTrends"></div></div></section></section>
-<section class="tab-panel" id="tab-planner"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 만들려는 장르/태그를 선택하고, 성공 참고 게임과 실패/주의 참고 게임을 같이 비교합니다.</p></div><section class="card"><h2>내 게임 기획 입력</h2><p class="muted">선택 전에는 전체 시장 평균을 기준으로 표시합니다. 가격/언어 수/출시월은 일부러 비워두어 사용자가 직접 입력한 값만 반영합니다.</p><div id="inputs"></div><div id="estimate" class="card"></div><div id="tagComboRecommendations" class="card combo-card"></div></section><section class="card"><h2>선택 조건 기반 참고 게임</h2><div id="selectedGames"></div></section></section>
-<section class="tab-panel" id="tab-evidence"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 모델이 어떤 요소를 중요하게 봤는지 확인하고 가격·언어·플랫폼 전략을 조정합니다.</p></div><section class="grid cols-2"><div class="card"><h2>모델 근거 feature importance</h2><div id="importance"></div></div><div class="card"><h2>성공/중박/실패 기준</h2><ul class="criteria-list"><li>성공: __SUCCESS_THRESHOLD__ 이상</li><li>중박: __MID_THRESHOLD__ 이상 __SUCCESS_THRESHOLD__ 미만</li><li>실패: __MID_THRESHOLD__ 미만</li></ul><div id="comparison"></div></div></section></section>
-<section class="tab-panel" id="tab-risks"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 비슷한 실패 사례와 부정 리뷰 키워드를 보고 출시 전 리스크 체크리스트를 만듭니다.</p></div><section class="grid cols-2"><div class="card"><h2>유사 성공작</h2><div id="successGames"></div></div><div class="card"><h2>유사 실패/위험 사례</h2><div id="riskGames"></div></div></section><section class="grid cols-2"><div class="card"><h2>개발 주의점</h2><div id="cautions"></div></div><div class="card"><h2>외부 데이터 상태</h2><div id="external"></div></div></section></section>
+<div class="tab-shell"><nav class="tabs" aria-label="시장 인사이트 탭"><button class="tab-button active" data-tab="overview" type="button" aria-selected="true">성장 조합</button><button class="tab-button" data-tab="planner" type="button" aria-selected="false">내 기획 진단</button><button class="tab-button" data-tab="risks" type="button" aria-selected="false">근거 사례</button><button class="tab-button" data-tab="evidence" type="button" aria-selected="false">판단 기준</button></nav></div>
+<section class="tab-panel active" id="tab-overview" role="tabpanel"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 현재 성장세 장르/태그 조합 ranking과 근거를 보고 기획 후보를 좁힙니다.</p></div><section class="grid cols-3" id="summary"></section><section class="card"><h2>성장 조합 ranking</h2><div id="combinationOpportunities"></div></section><section class="card"><h2>조합 단위 집계 모델</h2><p class="muted" id="guidancePurpose"></p><div class="grid cols-3" id="guidanceCards"></div><h3>출시 전 체크리스트</h3><ul class="checklist" id="guidanceChecklist"></ul></section><section class="grid cols-2"><div class="card"><h2>장르 트렌드</h2><div id="genreTrends"></div></div><div class="card"><h2>태그/기능 트렌드</h2><div id="tagTrends"></div></div></section></section>
+<section class="tab-panel" id="tab-planner" role="tabpanel"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 만들려는 장르/태그를 선택하고, 관측 성공 사례와 관측 실패/주의 사례를 같이 비교합니다.</p></div><section class="card"><h2>내 게임 기획 입력</h2><p class="muted">선택 전에는 전체 관측 성공률을 기준선으로 표시합니다. 가격/언어 수/출시월은 일부러 비워두어 사용자가 직접 입력한 값만 반영합니다.</p><div id="planningActions" class="planning-actions"><button id="maximizePlanButton" class="ghost-button" type="button">선택 조건 최적화</button></div><div id="inputs"></div><div id="estimate" class="card"></div><div id="tagComboRecommendations" class="card combo-card"></div></section><section class="card"><h2>선택 조건 기반 참고 게임</h2><div id="selectedGames"></div></section></section>
+<section class="tab-panel" id="tab-evidence" role="tabpanel"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">모델, 기준, 코드 구조를 확인하고 결과 해석 범위를 판단합니다.</p></div><section class="grid cols-2"><div class="card"><h2>모델 근거 feature importance</h2><div id="importance"></div></div><div class="card"><h2>성공/중박/실패 기준</h2><ul class="criteria-list"><li>성공: __SUCCESS_THRESHOLD__ 이상</li><li>중박: __MID_THRESHOLD__ 이상 __SUCCESS_THRESHOLD__ 미만</li><li>실패: __MID_THRESHOLD__ 미만</li></ul><div id="comparison"></div></div></section><section class="card"><h2>모델·파이프라인 구조</h2><div id="modelArchitecture"></div></section><section class="card"><h2>의미 모델·추천 신뢰도</h2><div id="semanticModel"></div></section></section>
+<section class="tab-panel" id="tab-risks" role="tabpanel"><div class="scenario-card"><b>이 탭의 쓰임</b><p class="muted">개발자 시나리오: 비슷한 실패 사례와 부정 리뷰 키워드를 보고 출시 전 리스크 체크리스트를 만듭니다.</p></div><section class="grid cols-2"><div class="card"><h2>관측 성공 사례</h2><div id="successGames"></div></div><div class="card"><h2>관측 실패/주의 사례</h2><div id="riskGames"></div></div></section><section class="grid cols-2"><div class="card"><h2>개발 주의점</h2><div id="cautions"></div></div><div class="card"><h2>외부 데이터 상태</h2><div id="external"></div></div></section></section>
 </main>
 <div id="gameModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="gameDetailTitle"><div class="modal-panel"><div id="gameDetail"></div><div class="modal-actions"><a id="steamDetailLink" class="button-link" target="_blank" rel="noreferrer">Steam 페이지 열기</a><button class="ghost-button" onclick="closeGameDetail()">닫기</button></div></div></div>
 <script id="market-data" type="application/json">__PAYLOAD__</script>
 <script>
 const payload = JSON.parse(document.getElementById('market-data').textContent);
-const selectedState = { genres:new Set(), tags:new Set() };
+const selectedState = { genres:new Set(), strategy_tags:new Set(), tags:new Set() };
 const pct = value => `${(Number(value || 0) * 100).toFixed(1)}%`;
 const num = value => Number(value || 0).toLocaleString();
 function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
@@ -132,7 +154,7 @@ function renderSummary() {
     ['분석 게임 수', `${num(s.game_count)}개`, '수집·정제 후 HTML에 반영된 표본'],
     ['분석 태그 수', `${num(s.analyzed_tag_count)}개`, 'Steam 태그/기능 기반 세부 시장 축'],
     ['성공 표본 비율', pct(s.success_rate), '장르별 상대 성공 기준 기반'],
-    ['평균 예측 확률', pct(s.average_prediction), '모델 1 결과 평균']
+    ['평균 기획 잠재력', pct(s.average_prediction), '모델 1 결과 평균']
   ].forEach(([title, metric, desc]) => {
     const card = add(target, node('div', '', 'card'));
     add(card, node('span', metric, 'metric'));
@@ -140,10 +162,51 @@ function renderSummary() {
     add(card, node('p', desc, 'muted'));
   });
 }
+function renderCombinationOpportunities() {
+  const target = document.getElementById('combinationOpportunities');
+  clear(target);
+  const rows = payload.combination_opportunities || [];
+  if (!rows.length) {
+    add(target, node('p', '성장 조합 데이터가 부족합니다.', 'muted'));
+    return;
+  }
+  const eligible = rows.filter(row => row.rank_eligible).slice(0, 6);
+  const exploratory = rows.filter(row => !row.rank_eligible).slice(0, 4);
+  add(target, node('p', '기회 점수, 관측 성공률, 리뷰 성장 근거를 카드로 나눠 표시합니다. 긴 근거 문장은 아래 목록에서 따로 확인하세요.', 'section-kicker'));
+  if (eligible.length) {
+    renderOpportunityCards(target, eligible, false);
+  } else {
+    add(target, node('p', '충분 표본을 충족한 조합이 없어 강한 추천을 하지 않습니다.', 'muted'));
+  }
+  if (exploratory.length) {
+    heading(target, '탐색 후보 / 표본 부족');
+    renderOpportunityCards(target, exploratory, true);
+  }
+}
+function renderOpportunityCards(target, rows, exploratory) {
+  const list = add(target, node('div', '', 'opportunity-list'));
+  rows.forEach(row => {
+    const card = add(list, node('article', '', `opportunity-card ${exploratory ? 'exploratory' : ''}`));
+    const head = add(card, node('div', '', 'opportunity-head'));
+    add(head, node('h3', row.combination));
+    add(head, node('span', pct(row.opportunity_score), 'score-badge'));
+    const meta = add(card, node('div', '', 'opportunity-meta'));
+    addMetaTile(meta, '관측 성공률', pct(row.observed_success_rate));
+    addMetaTile(meta, '근거 표본', `${num(row.game_count)}개`);
+    addMetaTile(meta, '리뷰 성장', `${Number(row.review_growth_ratio || 0).toFixed(1)}배`);
+    const evidence = add(card, node('ul', '', 'evidence-list'));
+    (row.evidence_lines || []).forEach(line => add(evidence, node('li', line)));
+  });
+}
+function addMetaTile(parent, label, value) {
+  const tile = add(parent, node('div', '', 'meta-tile'));
+  add(tile, node('b', value));
+  add(tile, node('span', label, 'muted'));
+}
 function renderGuidance() {
   const guidance = payload.developer_guidance || {};
   const purpose = document.getElementById('guidancePurpose');
-  purpose.textContent = guidance.purpose || '성공확률을 개발 액션으로 바꾸는 보조 모델입니다.';
+  purpose.textContent = guidance.purpose || '성공 가능성을 개발 액션으로 바꾸는 보조 모델입니다.';
   const cards = document.getElementById('guidanceCards');
   clear(cards);
   (guidance.cards || []).forEach(item => {
@@ -159,6 +222,7 @@ function renderGuidance() {
 }
 function renderSemanticModel() {
   const target = document.getElementById('semanticModel');
+  if (!target) return;
   clear(target);
   const semantic = payload.semantic_model || {};
   add(target, node('p', `전체 추천 신뢰도: ${semantic.confidence?.label || '낮음'} · ${semantic.confidence?.basis || '데이터 보유량 기준'}`, 'muted'));
@@ -168,7 +232,7 @@ function renderSemanticModel() {
   [['비즈니스 모델', semantic.business_models], ['출시 상태', semantic.lifecycles], ['제작 맥락', semantic.production_contexts]].forEach(([title, rows]) => {
     const card = add(layout, node('div', '', 'card'));
     add(card, node('b', title));
-    (rows || []).slice(0, 4).forEach(row => add(card, node('p', `${row.segment}: 표본 ${num(row.game_count)}개 · 평균 예측 ${pct(row.average_prediction)} · 성공률 ${pct(row.success_rate)}`, 'muted')));
+    (rows || []).slice(0, 4).forEach(row => add(card, node('p', `${row.segment}: 표본 ${num(row.game_count)}개 · 모델 보조 평균 ${pct(row.average_prediction)} · 성공률 ${pct(row.success_rate)}`, 'muted')));
   });
 }
 function heading(parent, text) { add(parent, node('h3', text)); }
@@ -204,10 +268,8 @@ function renderInputs() {
     {key:'tags', title:'Steam 태그/기능', options:inputs.tags || [], initial_visible:12, searchable:true, show_more:true}
   ]).filter(group => group.key !== 'checkbox_fields').forEach(renderInputGroup);
   heading(target, '상세 기획');
-  const optimizeButton = add(target, node('button', '선택 조건 최적화', 'ghost-button'));
-  optimizeButton.id = 'maximizePlanButton';
-  optimizeButton.type = 'button';
-  optimizeButton.onclick = optimizePlanningInputs;
+  const optimizeButton = document.getElementById('maximizePlanButton');
+  if (optimizeButton) optimizeButton.onclick = optimizePlanningInputs;
   numeric(target, 'price', '가격', '');
   numeric(target, 'languages', '언어 수', '');
   numeric(target, 'month', '출시월', '', '1', '12');
@@ -297,28 +359,14 @@ function gameHasGenreSelection(game, genre) {
 }
 function tagComboCandidates() {
   const genres = [...selectedState.genres];
-  if (!genres.length) return [];
-  const games = (payload.games || []).filter(game => genres.every(genre => gameHasGenreSelection(game, genre)));
-  const combos = new Map();
-  games.forEach(game => {
-    const tags = gameTagTerms(game).slice(0, 8);
-    const candidates = tags.map(tag => [tag]);
-    for (let i = 0; i < tags.length; i += 1) {
-      for (let j = i + 1; j < tags.length; j += 1) candidates.push([tags[i], tags[j]]);
-    }
-    candidates.forEach(combo => {
-      const key = combo.join(' + ');
-      const previous = combos.get(key) || {combo:key, sample:0, probabilitySum:0, successSum:0};
-      previous.sample += 1;
-      previous.probabilitySum += Number(game.predicted_success_probability || 0);
-      previous.successSum += game.outcome_label === '성공' ? 1 : 0;
-      combos.set(key, previous);
-    });
-  });
-  const minimum = strongRecommendationMinimumSample();
-  return Array.from(combos.values())
-    .filter(row => row.sample >= 2)
-    .map(row => ({combo:row.combo, sample:row.sample, probability:row.probabilitySum / row.sample, successRate:row.successSum / row.sample, eligible:row.sample >= minimum}))
+  const selected = new Set(selectedTerms());
+  return (payload.combination_opportunities || [])
+    .filter(row => {
+      const parts = String(row.combination || '').split(' + ');
+      if (genres.length && !genres.every(genre => parts.includes(genre))) return false;
+      return [...selected].every(term => parts.includes(term));
+    })
+    .map(row => ({combo:row.combination, sample:row.game_count, probability:row.opportunity_score, successRate:row.observed_success_rate, eligible:row.rank_eligible, evidence:row.evidence_lines || []}))
     .sort((a, b) => Number(b.eligible) - Number(a.eligible) || b.probability - a.probability || b.sample - a.sample)
     .slice(0, 8);
 }
@@ -341,16 +389,16 @@ function optimizePlanningInputs() {
   });
   const combo = tagComboCandidates()[0];
   if (combo) {
-    combo.combo.split(' + ').forEach(tag => selectedSet('tags').add(tag));
+    combo.combo.split(' + ').filter(tag => !selectedState.genres.has(tag)).forEach(tag => selectedSet('tags').add(tag));
   }
   updateInterface();
 }
 function renderTagComboRecommendations() {
   const target = document.getElementById('tagComboRecommendations');
   clear(target);
-  add(target, node('h3', '선택 장르 기준 성공확률 높은 태그 조합'));
+  add(target, node('h3', '선택 장르 기준 추천 태그 조합'));
   if (!selectedState.genres.size) {
-    add(target, node('p', '메인 장르를 먼저 선택하면, 그 장르에서 성공확률이 높았던 Steam 태그 조합을 추천합니다.', 'muted'));
+    add(target, node('p', '메인 장르를 먼저 선택하면, 그 장르에서 성공 가능성이 높았던 Steam 태그 조합을 추천합니다.', 'muted'));
     return;
   }
   const combos = tagComboCandidates();
@@ -362,33 +410,36 @@ function renderTagComboRecommendations() {
   const exploratory = combos.filter(row => !row.eligible);
   heading(target, '충분 표본 기반 추천');
   if (strong.length) {
-    add(target, table(['추천 태그 조합','평균 예측','성공률','표본'], strong.map(row => [row.combo, pct(row.probability), pct(row.successRate), row.sample])));
+    add(target, table(['추천 태그 조합','기획 잠재력','관측 성공률','근거 표본'], strong.map(row => [row.combo, pct(row.probability), pct(row.successRate), row.sample])));
   } else {
     add(target, node('p', `현재 선택 장르에서는 표본 ${strongRecommendationMinimumSample()}개 이상인 조합이 없어 강한 추천을 하지 않습니다.`, 'muted'));
   }
   if (exploratory.length) {
     heading(target, '탐색 후보 / 표본 부족');
-    add(target, table(['탐색 태그 조합','평균 예측','성공률','표본'], exploratory.map(row => [row.combo, pct(row.probability), pct(row.successRate), row.sample])));
+    add(target, table(['탐색 태그 조합','기획 잠재력','관측 성공률','근거 표본'], exploratory.map(row => [row.combo, pct(row.probability), pct(row.successRate), row.sample])));
   }
 }
 function probabilityFor(terms) {
-  if (!terms.length) return Number(payload.summary.average_prediction || 0);
+  if (!terms.length) return Number(payload.summary.success_rate || 0);
+  const combo = (payload.combination_opportunities || []).find(row => terms.every(term => String(row.combination || '').split(' + ').includes(term)));
+  if (combo) return Number(combo.opportunity_score || 0);
   const games = matchingGames(terms);
-  if (!games.length) return Number(payload.summary.average_prediction || 0);
-  return games.reduce((sum, game) => sum + Number(game.predicted_success_probability || 0), 0) / games.length;
+  if (!games.length) return Number(payload.summary.success_rate || 0);
+  return games.filter(game => game.outcome_label === '성공').length / games.length;
 }
 function updateChips(baseProbability) {
   document.querySelectorAll('.impact-chip').forEach(button => {
     const type = button.dataset.kind;
     const value = button.dataset.value;
-    const active = selectedState[type].has(value);
+    const stateSet = selectedSet(type);
+    const active = stateSet.has(value);
     const nextTerms = selectedTerms(active ? '' : type, active ? '' : value);
     const impact = Math.abs(probabilityFor(nextTerms) - baseProbability);
     const hasGames = matchingGames(nextTerms).length > 0;
     button.classList.toggle('active', active);
-    button.disabled = !active && (!hasGames || impact < 0.005);
+    button.disabled = !active && !hasGames;
     button.setAttribute('data-impact-disabled', button.disabled ? 'true' : 'false');
-    button.title = button.disabled ? '현재 선택 조합에서 학습 게임이 없거나 예측 변화가 없습니다.' : `예상 변화 ${pct(impact)}`;
+    button.title = button.disabled ? '현재 선택 조합에서 학습 게임이 없습니다.' : `잠재력 변화 ${pct(impact)}`;
   });
 }
 function outcomeClass(label) {
@@ -408,17 +459,19 @@ function renderSelectedGames(games) {
   const layout = add(target, node('div', '', 'grid cols-2'));
   const successSection = add(layout, node('section', '', 'card'));
   const riskSection = add(layout, node('section', '', 'card'));
-  heading(successSection, '성공 참고 게임');
+  heading(successSection, '관측 성공 사례');
   const successReferenceGamesNode = add(successSection, node('div', '', 'reference-grid'));
   successReferenceGamesNode.id = 'successReferenceGames';
-  heading(riskSection, '실패/주의 참고 게임');
+  heading(riskSection, '관측 실패/주의 사례');
   const riskReferenceGamesNode = add(riskSection, node('div', '', 'reference-grid'));
   riskReferenceGamesNode.id = 'riskReferenceGames';
   successReferenceGames.forEach(game => addGameCard(successReferenceGamesNode, game));
   riskReferenceGames.forEach(game => addGameCard(riskReferenceGamesNode, game));
+  const missingImages = games.filter(game => !game.header_image).length;
+  if (missingImages) add(target, node('p', `이미지 없음: 선택 조건 참고 게임 중 ${num(missingImages)}개는 Steam header_image 데이터가 없어 placeholder로 표시됩니다.`, 'reference-note'));
 }
 function createGameImage(game) {
-  if (!game.header_image) return null;
+  if (!game.header_image) return node('div', '이미지 없음', 'image-placeholder');
   const image = node('img', '', 'game-image');
   image.src = game.header_image;
   image.alt = `${game.name} Steam 상점 이미지`;
@@ -434,7 +487,7 @@ function addGameCard(target, game) {
     add(card, node('b', game.name));
     add(card, node('p', `${game.genres || '장르 없음'} · ${game.steam_tags || '태그 없음'}`, 'muted'));
     add(card, node('span', game.outcome_label, outcomeClass(game.outcome_label)));
-    add(card, node('p', `예측 ${pct(game.predicted_success_probability)} · 리뷰 ${num(game.total_reviews)}개 · 긍정률 ${pct(game.positive_rate)}`, 'muted'));
+    add(card, node('p', `관측 결과 · 90일 리뷰 ${num(game.total_reviews)}개 · 90일 긍정률 ${pct(game.positive_rate)}`, 'muted'));
     add(card, node('p', `${game.business_model} · ${game.lifecycle} · 신뢰도 ${game.confidence}`, 'muted'));
     add(card, node('p', semanticProfileText(game), 'muted'));
     add(card, node('p', `플랫폼 ${num(game.platform_count)}개 · 리뷰 성장률 ${game.review_growth_label}`, 'muted'));
@@ -450,7 +503,7 @@ function openGameDetail(appid) {
   const image = createGameImage(game);
   if (image) add(detail, image);
   add(detail, node('span', game.outcome_label, outcomeClass(game.outcome_label)));
-  add(detail, node('p', `모델 예측 성공확률 ${pct(game.predicted_success_probability)} / 리뷰 ${num(game.total_reviews)}개 / 긍정률 ${pct(game.positive_rate)}`));
+  add(detail, node('p', `관측 결과 ${game.outcome_label} / 90일 리뷰 ${num(game.total_reviews)}개 / 90일 긍정률 ${pct(game.positive_rate)}`));
   add(detail, node('p', `장르: ${game.genres || '없음'}`, 'muted'));
   add(detail, node('p', `태그: ${game.steam_tags || '없음'}`, 'muted'));
   add(detail, node('p', `의미 분류: ${game.business_model} / ${game.lifecycle} / ${game.production_context} / 신뢰도 ${game.confidence}`, 'muted'));
@@ -474,7 +527,8 @@ function closeGameDetail() {
   document.getElementById('gameModal').classList.remove('open');
 }
 function table(headers, rows) {
-  const tableNode = node('table');
+  const wrapper = node('div', '', 'table-wrap');
+  const tableNode = add(wrapper, node('table'));
   const thead = add(tableNode, node('thead'));
   const headRow = add(thead, node('tr'));
   headers.forEach(header => add(headRow, node('th', header)));
@@ -483,7 +537,7 @@ function table(headers, rows) {
     const tr = add(tbody, node('tr'));
     row.forEach(cell => add(tr, node('td', cell)));
   });
-  return tableNode;
+  return wrapper;
 }
 function trendClass(trend) {
   if (trend === '상승') return 'trend-up';
@@ -497,32 +551,20 @@ function trendSymbol(trend) {
   return '↘ 하락';
 }
 function renderTrends() {
-  const render = (targetId, rows) => {
-    const target = document.getElementById(targetId);
-    clear(target);
-    const tableNode = node('table');
-    const thead = add(tableNode, node('thead'));
-    const headRow = add(thead, node('tr'));
-    ['항목','방향','예측','성공률','표본'].forEach(header => add(headRow, node('th', header)));
-    const tbody = add(tableNode, node('tbody'));
-    rows.forEach(row => {
-      const tr = add(tbody, node('tr'));
-      add(tr, node('td', row.name));
-      add(tr, node('td', trendSymbol(row.trend), trendClass(row.trend)));
-      add(tr, node('td', pct(row.average_prediction)));
-      add(tr, node('td', pct(row.success_rate)));
-      add(tr, node('td', row.game_count));
-    });
-    add(target, tableNode);
-  };
-  render('genreTrends', payload.market_trends || []);
-  render('tagTrends', payload.tag_trends || []);
+  renderTrendTable('genreTrends', payload.market_trends || []);
+  renderTrendTable('tagTrends', payload.tag_trends || []);
+}
+function renderTrendTable(targetId, rows) {
+  const target = document.getElementById(targetId);
+  clear(target);
+  add(target, table(['항목','방향','기획 잠재력','성공률','표본'], rows.map(row => [row.name, trendSymbol(row.trend), pct(row.average_prediction), pct(row.success_rate), row.game_count])));
 }
 function gameTable(rows) {
-  const tableNode = node('table');
+  const wrapper = node('div', '', 'table-wrap');
+  const tableNode = add(wrapper, node('table'));
   const thead = add(tableNode, node('thead'));
   const headRow = add(thead, node('tr'));
-  ['게임','장르','예측','리뷰','긍정률'].forEach(header => add(headRow, node('th', header)));
+  ['게임','장르','관측 결과','90일 리뷰','긍정률'].forEach(header => add(headRow, node('th', header)));
   const tbody = add(tableNode, node('tbody'));
   rows.forEach(game => {
     const tr = add(tbody, node('tr'));
@@ -531,9 +573,9 @@ function gameTable(rows) {
     link.href = game.steam_url;
     link.target = '_blank';
     link.rel = 'noreferrer';
-    [game.genres, pct(game.predicted_success_probability), num(game.total_reviews), pct(game.positive_rate)].forEach(cell => add(tr, node('td', cell)));
+    [game.genres, game.outcome_label, num(game.total_reviews), pct(game.positive_rate)].forEach(cell => add(tr, node('td', cell)));
   });
-  return tableNode;
+  return wrapper;
 }
 function renderGames() {
   const success = document.getElementById('successGames');
@@ -543,15 +585,6 @@ function renderGames() {
   const riskGrid = add(risk, node('div', '', 'reference-grid'));
   (payload.similar_games.success_examples || []).forEach(game => addGameCard(successGrid, game));
   (payload.similar_games.risk_examples || []).forEach(game => addGameCard(riskGrid, game));
-  renderNoEvidenceReferences(success, payload.similar_games.success_without_review_evidence || []);
-  renderNoEvidenceReferences(risk, payload.similar_games.risk_without_review_evidence || []);
-}
-function renderNoEvidenceReferences(target, games) {
-  if (!games.length) return;
-  heading(target, '리뷰 근거 없는 참고');
-  add(target, node('p', '리뷰 본문 표본이 5개 미만이라 모델 지표와 Steam 메타데이터만 참고합니다.', 'muted'));
-  const grid = add(target, node('div', '', 'reference-grid'));
-  games.forEach(game => addGameCard(grid, game));
 }
 function renderCautions() {
   const rec = payload.recommendations;
@@ -566,11 +599,31 @@ function renderCautions() {
 function renderExternal() {
   const target = document.getElementById('external');
   clear(target);
-  Object.entries(payload.external_data).forEach(([key, value]) => {
-    const card = add(target, node('div', '', `card ${value.enabled ? 'enabled' : 'disabled'}`));
+  const entries = Object.entries(payload.external_data).filter(([key, value]) => value.enabled);
+  if (!entries.length) {
+    add(target, node('p', '표시 가능한 평점 서비스 데이터가 없습니다.', 'muted'));
+    return;
+  }
+  entries.forEach(([key, value]) => {
+    const card = add(target, node('div', '', 'card enabled'));
     add(card, node('b', key));
     add(card, node('p', value.reason));
   });
+}
+function renderModelArchitecture() {
+  const target = document.getElementById('modelArchitecture');
+  if (!target) return;
+  clear(target);
+  const project = payload.project || {};
+  const items = [
+    `모델 1: ${project.model_1 || '장르별 상대 기준 기반 성공 분류 모델'}`,
+    `모델 2: ${project.model_2 || '조합 단위 집계 모델'}`,
+    '데이터 흐름: 90일 리뷰 윈도우 데이터 → 모델링 데이터셋 → 예측/기준표 → market_insight payload → 정적 HTML 렌더링',
+    '핵심 코드: market_insight.py는 payload와 조합 점수를 만들고, market_report.py는 탭·카드·진단 UI를 렌더링합니다.',
+    '주의: 개별 게임은 예측 대상이 아니라 이미 관측된 성공/중박/실패 근거 사례입니다.'
+  ];
+  const list = add(target, node('ul', '', 'architecture-list'));
+  items.forEach(item => add(list, node('li', item)));
 }
 function renderImportance() {
   const target = document.getElementById('importance');
@@ -617,8 +670,9 @@ function estimate() {
   const probability = Math.max(0, Math.min(1, base + adjustment));
   const target = document.getElementById('estimate');
   clear(target);
-  add(target, node('h3', '선택 기획 잠재력'));
+  add(target, node('h3', terms.length ? '선택 기획 잠재력' : '선택 전 기준선'));
   add(target, node('span', pct(probability), 'metric'));
+  add(target, node('p', terms.length ? '선택한 장르/태그와 상세 조건을 반영한 조합 기반 추정치입니다.' : '아무 조건도 선택하지 않았으므로 전체 관측 성공률을 기준선으로 표시합니다.', 'muted'));
   renderFourPartDiagnosis(target, {terms, matchedGames, probability, price, languages, releaseMonth, checkedDetails});
   renderTagComboRecommendations();
   renderSelectedGames(matchedGames);
@@ -629,28 +683,49 @@ function renderFourPartDiagnosis(target, context) {
   const enoughSample = games.length >= strongRecommendationMinimumSample();
   const successGames = games.filter(game => game.outcome_label === '성공').length;
   const riskGames = games.filter(game => game.outcome_label !== '성공').length;
+  const selectedLabel = context.terms.length ? `선택 장르/태그 ${context.terms.length}개 반영` : '전체 관측 성공률 기준';
   const action = enoughSample
-    ? `표본 ${games.length}개 기준으로 성공 참고작 ${successGames}개와 위험 사례 ${riskGames}개를 비교하고, 가격 ${context.price || '미입력'}, 언어 ${context.languages || '미입력'}개, 출시월 ${context.releaseMonth || '미입력'} 조건을 조정하세요.`
-    : `매칭 표본 ${games.length}개는 강한 추천 기준 ${strongRecommendationMinimumSample()}개 미만입니다. 장르/태그 조건을 넓힌 뒤 참고작을 먼저 비교하세요.`;
+    ? `표본 ${games.length}개 기준으로 관측 성공 사례 ${successGames}개와 관측 실패/주의 사례 ${riskGames}개를 비교하고, 가격 ${context.price || '미입력'}, 언어 ${context.languages || '미입력'}개, 출시월 ${context.releaseMonth || '미입력'} 조건을 조정하세요.`
+    : `매칭 표본 ${games.length}개는 강한 추천 기준 ${strongRecommendationMinimumSample()}개 미만입니다. 장르/태그 조건을 넓힌 뒤 관측 사례를 먼저 비교하세요.`;
   const cards = [
-    ['성공 가능성', `기획 입력 반영: ${pct(context.probability)} · 선택 장르/태그 ${context.terms.length}개 반영`],
-    ['비교군', enoughSample ? `매칭 게임 ${games.length}개 · 성공 참고 ${successGames}개` : `매칭 게임 ${games.length}개 · 탐색 후보 / 표본 부족`],
-    ['위험', riskGames ? `위험 사례 ${riskGames}개와 부정 리뷰 키워드를 먼저 확인하세요.` : '현재 조건에서 명확한 위험 비교군이 부족합니다.'],
+    ['성공 가능성', `기획 입력 반영: ${pct(context.probability)} · ${selectedLabel}`],
+    ['비교군', enoughSample ? `매칭 게임 ${games.length}개 · 관측 성공 사례 ${successGames}개` : `매칭 게임 ${games.length}개 · 탐색 후보 / 표본 부족`],
+    ['관측 실패/주의 사례', riskGames ? `관측 실패/주의 사례 ${riskGames}개와 부정 리뷰 키워드를 먼저 확인하세요.` : '현재 조건에서 명확한 관측 실패/주의 사례가 부족합니다.'],
     ['액션 제안', action],
   ];
   const layout = add(target, node('div', '', 'grid cols-2'));
   cards.forEach(([title, body]) => {
     const card = add(layout, node('div', '', 'card'));
     add(card, node('b', title));
-    add(card, node('p', body, title === '위험' ? 'risk' : 'muted'));
+    add(card, node('p', body, title === '관측 실패/주의 사례' ? 'risk' : 'muted'));
+    const links = add(card, node('div', '', 'action-links'));
+    if (title === '비교군') addActionLink(links, '선택 참고게임 보기', () => scrollToPlannerReference('selectedGames'));
+    if (title === '관측 실패/주의 사례') addActionLink(links, '선택 실패/주의 사례 보기', () => scrollToPlannerReference('riskReferenceGames'));
+    if (title === '액션 제안') addActionLink(links, '판단 기준 보기', () => activateTab('evidence'));
   });
+}
+function addActionLink(parent, label, handler) {
+  const button = add(parent, node('button', label, 'action-link'));
+  button.type = 'button';
+  button.onclick = handler;
 }
 function updateInterface() {
   estimate();
 }
 function activateTab(name) {
-  document.querySelectorAll('.tab-button').forEach(button => button.classList.toggle('active', button.dataset.tab === name));
+  document.querySelectorAll('.tab-button').forEach(button => {
+    const active = button.dataset.tab === name;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
   document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === `tab-${name}`));
+}
+function scrollToPlannerReference(targetId) {
+  activateTab('planner');
+  requestAnimationFrame(() => {
+    const target = document.getElementById(targetId) || document.getElementById('selectedGames');
+    if (target) target.scrollIntoView({behavior:'smooth', block:'start'});
+  });
 }
 document.querySelectorAll('.tab-button').forEach(button => {
   button.onclick = () => activateTab(button.dataset.tab);
@@ -658,7 +733,7 @@ document.querySelectorAll('.tab-button').forEach(button => {
 document.getElementById('gameModal').addEventListener('click', event => {
   if (event.target.id === 'gameModal') closeGameDetail();
 });
-renderSummary(); renderGuidance(); renderSemanticModel(); renderInputs(); renderTrends(); renderGames(); renderCautions(); renderExternal(); renderImportance(); renderComparison(); updateInterface();
+renderSummary(); renderCombinationOpportunities(); renderGuidance(); renderSemanticModel(); renderInputs(); renderTrends(); renderGames(); renderCautions(); renderExternal(); renderModelArchitecture(); renderImportance(); renderComparison(); updateInterface();
 </script>
 </body>
 </html>

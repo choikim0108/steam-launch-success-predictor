@@ -174,9 +174,9 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertIn("lifecycle", games[0])
         self.assertIn("confidence", games[0])
         self.assertEqual(feature_importance[0]["feature"], "price_final_usd")
-        self.assertTrue(similar_games["success_without_review_evidence"])
+        self.assertTrue(similar_games["success_examples"])
         self.assertTrue(recommendations["development_cautions"])
-        self.assertEqual(developer_guidance["name"], "기획 인사이트 추천 엔진")
+        self.assertEqual(developer_guidance["name"], "조합 단위 집계 모델")
         self.assertTrue(developer_guidance["cards"])
         self.assertTrue(developer_guidance["checklist"])
 
@@ -293,7 +293,7 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertIn("performance", str(evidence["negative_terms"]))
         self.assertIn("크롤링 리뷰 2개", str(game["reference_reason"]))
 
-    def test_similar_games_split_references_without_enough_review_evidence(self) -> None:
+    def test_similar_games_keep_observed_references_without_review_body_split(self) -> None:
         data = sample_dataset()
         reviews = pd.DataFrame([
             {"appid": 10, "name": "Successful Action RPG", "matched_genres": "Action", "success": 1, "voted_up": True, "playtime_hours": 2.0, "review_text": f"combat gameplay replayability controller support {index}"}
@@ -306,13 +306,12 @@ class MarketInsightSiteTests(unittest.TestCase):
         similar_games = cast(dict[str, object], payload["similar_games"])
         success_examples = cast(list[dict[str, object]], similar_games["success_examples"])
         risk_examples = cast(list[dict[str, object]], similar_games["risk_examples"])
-        success_without = cast(list[dict[str, object]], similar_games["success_without_review_evidence"])
-        risk_without = cast(list[dict[str, object]], similar_games["risk_without_review_evidence"])
 
-        self.assertEqual([game["appid"] for game in success_examples], [10])
-        self.assertFalse(risk_examples)
-        self.assertIn(30, [game["appid"] for game in success_without])
-        self.assertIn(20, [game["appid"] for game in risk_without])
+        self.assertIn(10, [game["appid"] for game in success_examples])
+        self.assertIn(30, [game["appid"] for game in success_examples])
+        self.assertIn(20, [game["appid"] for game in risk_examples])
+        self.assertNotIn("success_without_review_evidence", similar_games)
+        self.assertNotIn("risk_without_review_evidence", similar_games)
 
     def test_market_payload_filters_noisy_review_keywords(self) -> None:
         topics = pd.DataFrame([
@@ -424,11 +423,11 @@ class MarketInsightSiteTests(unittest.TestCase):
 
         payload = build_market_insight_payload(pd.DataFrame(rows), pd.DataFrame())
         trends = cast(list[dict[str, object]], payload["market_trends"])
-        developer_guidance = cast(dict[str, object], payload["developer_guidance"])
-        signals = [str(card["signal"]) for card in cast(list[dict[str, object]], developer_guidance["cards"])]
+        trend_names = [str(row["name"]) for row in trends]
 
-        self.assertIn("Action", [str(row["name"]) for row in trends])
-        self.assertIn("Action", signals)
+        self.assertEqual(trend_names[0], "Action")
+        tiny = next(row for row in trends if row["name"] == "Tiny Perfect 0")
+        self.assertEqual(tiny["sample_status"], "표본 부족")
 
     def test_confidence_reports_missing_population_coverage_and_avoids_high_label(self) -> None:
         data = pd.concat([sample_dataset()] * 150, ignore_index=True)
@@ -458,31 +457,26 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertAlmostEqual(float(str(coverage["sample_coverage"])), len(data) / 10000)
         self.assertIn("낮음", str(coverage["status"]))
 
-    def test_external_availability_disabled_when_data_missing(self) -> None:
+    def test_external_availability_only_reports_critic_score(self) -> None:
         data = sample_dataset()
         data[["webzine_mentions", "youtube_mentions", "blog_mentions", "external_attention_score"]] = 0
 
         payload = build_market_insight_payload(data, pd.DataFrame())
         external_data = cast(dict[str, object], payload["external_data"])
-        webzine = cast(dict[str, object], external_data["webzine"])
         critic_score = cast(dict[str, object], external_data["critic_score"])
 
-        self.assertFalse(webzine["enabled"])
-        self.assertIn("데이터 부족", str(webzine["reason"]))
+        self.assertEqual(set(external_data), {"critic_score"})
         self.assertFalse(critic_score["enabled"])
         self.assertIn("평점", str(critic_score["reason"]))
 
-    def test_steamspy_enabled_when_owner_proxy_exists(self) -> None:
+    def test_steamspy_owner_proxy_is_not_reported_in_market_payload(self) -> None:
         data = sample_dataset()
         data["steamspy_owners_median"] = [1000, 0, 2000, 0]
 
         payload = build_market_insight_payload(data, pd.DataFrame())
         external_data = cast(dict[str, object], payload["external_data"])
-        steamspy = cast(dict[str, object], external_data["steamspy"])
-        metrics = cast(dict[str, object], steamspy["metrics"])
 
-        self.assertTrue(steamspy["enabled"])
-        self.assertEqual(metrics["owners_proxy_count"], 2)
+        self.assertNotIn("steamspy", external_data)
 
     def test_prediction_feature_columns_exclude_future_outcomes(self) -> None:
         forbidden = {
@@ -547,7 +541,7 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertIn("data-input-group", html)
         self.assertIn("검색", html)
         self.assertIn("더보기", html)
-        self.assertIn("기획 인사이트 추천 엔진", html)
+        self.assertIn("조합 단위 집계 모델", html)
         self.assertIn("renderGuidance", html)
         self.assertIn("출시 전 체크리스트", html)
 
@@ -558,7 +552,7 @@ class MarketInsightSiteTests(unittest.TestCase):
 
         self.assertIn("selectedGames", html)
         self.assertIn("tagComboRecommendations", html)
-        self.assertIn("선택 장르 기준 성공확률 높은 태그 조합", html)
+        self.assertIn("선택 장르 기준 추천 태그 조합", html)
         self.assertIn("maximizePlanButton", html)
         self.assertIn("선택 조건 최적화", html)
         self.assertIn("optimizePlanningInputs", html)
@@ -570,11 +564,13 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertIn("data-impact-disabled", html)
         self.assertIn("feature importance", html)
         self.assertIn("리뷰 성장률", html)
-        self.assertIn("의미 모델·추천 신뢰도", html)
+        self.assertIn("조합 단위 집계 모델", html)
         self.assertIn("모집단 coverage", html)
         self.assertIn("renderSemanticModel", html)
         self.assertIn("reference_reason", html)
-        self.assertIn("리뷰 근거 없는 참고", html)
+        self.assertNotIn("리뷰 근거 없는 참고", html)
+        self.assertNotIn("리뷰 근거 있는 참고", html)
+        self.assertNotIn("리뷰 본문 표본이", html)
         self.assertIn("semanticProfileText", html)
         self.assertIn("항목별 신뢰도", html)
 
@@ -586,7 +582,7 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertIn("renderFourPartDiagnosis", html)
         self.assertIn("성공 가능성", html)
         self.assertIn("비교군", html)
-        self.assertIn("위험", html)
+        self.assertIn("관측 실패/주의 사례", html)
         self.assertIn("액션 제안", html)
         self.assertIn("strongRecommendationMinimumSample", html)
         self.assertIn("충분 표본 기반 추천", html)
@@ -608,7 +604,7 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertIn("createGameImage", html)
         self.assertIn("importance_description", html)
         self.assertIn("featureHelpText", html)
-        self.assertIn("선택 전에는 전체 시장 평균", html)
+        self.assertIn("선택 전 기준선", html)
 
     def test_model_opinion_uses_configured_outcome_thresholds(self) -> None:
         data = sample_dataset()
@@ -621,9 +617,9 @@ class MarketInsightSiteTests(unittest.TestCase):
         mid_game = next(game for game in games if game["appid"] == 20)
 
         self.assertEqual(success_game["outcome_label"], "성공")
-        self.assertIn("성공 패턴", str(success_game["model_opinion"]))
+        self.assertIn("관측 결과 성공 사례", str(success_game["model_opinion"]))
         self.assertEqual(mid_game["outcome_label"], "중박")
-        self.assertIn("중간권 잠재력", str(mid_game["model_opinion"]))
+        self.assertIn("관측 결과", str(mid_game["model_opinion"]))
 
     def test_reporting_rules_document_market_insight_domain_constants(self) -> None:
         rules = Path("docs/REPORTING_RULES.md").read_text(encoding="utf-8")
@@ -669,9 +665,9 @@ class MarketInsightSiteTests(unittest.TestCase):
         self.assertIn("numeric(target, 'month', '출시월', '', '1', '12')", html)
         self.assertIn("이 탭의 쓰임", html)
         self.assertIn("개발자 시나리오", html)
-        self.assertIn("시장 스냅샷", html)
-        self.assertIn("내 게임 진단", html)
-        self.assertIn("성공 레퍼런스", html)
+        self.assertIn("성장 조합", html)
+        self.assertIn("내 기획 진단", html)
+        self.assertIn("근거 사례", html)
         self.assertIn("판단 기준", html)
         self.assertIn("tab-shell", html)
 
@@ -697,9 +693,184 @@ class MarketInsightSiteTests(unittest.TestCase):
             self.fail("market data payload script is missing")
         payload = json.loads(match.group(1))
         games = cast(list[dict[str, object]], payload["games"])
-        self.assertEqual(games[-1]["name"], "A & B </script> <Test>")
-        self.assertEqual(games[-1]["total_reviews"], 0)
-        self.assertEqual(games[-1]["predicted_success_probability"], 0.0)
+        special = next(game for game in games if game["name"] == "A & B </script> <Test>")
+        self.assertEqual(special["total_reviews"], 0)
+        self.assertEqual(special["predicted_success_probability"], 0.0)
+
+
+    def test_developer_planner_uses_prediction_only_for_selected_concept(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = write_market_insight_site(Path(temp_dir), sample_dataset(), pd.DataFrame(), sample_feature_importance())
+            html = output.read_text(encoding="utf-8")
+
+        match = re.search(r'<script id="market-data" type="application/json">(.*?)</script>', html, re.S)
+        self.assertIsNotNone(match)
+        if match is None:
+            self.fail("market data payload script is missing")
+        payload = json.loads(match.group(1))
+        games = cast(list[dict[str, object]], payload["games"])
+
+        self.assertIn("combination_opportunities", payload)
+        self.assertIn("기획 잠재력", html)
+        self.assertIn("근거 표본", html)
+        self.assertIn("관측 결과", html)
+        self.assertNotIn("모델 예측 성공확률", html)
+        self.assertNotIn("add(card, node('p', `예측", html)
+        self.assertTrue(all("estimated_success_probability" not in game for game in games))
+        self.assertTrue(all("observed_success_rate" in row for row in cast(list[dict[str, object]], payload["combination_opportunities"])))
+
+    def test_sparse_combination_is_exploratory_not_recommended(self) -> None:
+        rows = []
+        for index in range(2):
+            rows.append({
+                "appid": 2000 + index,
+                "name": f"Sparse Combo {index}",
+                "genres": "Sparse",
+                "steam_tags": "Sparse, Novel",
+                "categories": "Single-player",
+                "success": 1,
+                "predicted_success_probability": 0.99,
+                "total_reviews": 40,
+                "positive_rate": 0.95,
+                "reviews_30d": 20,
+                "reviews_90d": 40,
+            })
+
+        payload = build_market_insight_payload(pd.DataFrame(rows), pd.DataFrame(), sample_feature_importance())
+        opportunities = cast(list[dict[str, object]], payload["combination_opportunities"])
+        sparse = next(row for row in opportunities if row["combination"] == "Sparse + Novel")
+
+        self.assertFalse(bool(sparse["rank_eligible"]))
+        self.assertEqual(sparse["growth_label"], "탐색 후보 / 표본 부족")
+        self.assertIn("강한 추천을 하지 않습니다", " ".join(cast(list[str], sparse["evidence_lines"])))
+
+    def test_growth_combinations_rank_by_sample_smoothed_success_and_review_growth(self) -> None:
+        rows = []
+        for index in range(24):
+            rows.append({
+                "appid": 3000 + index,
+                "name": f"Growing Action {index}",
+                "genres": "Action",
+                "steam_tags": "Action, Co-op",
+                "categories": "Single-player",
+                "success": 1 if index < 12 else 0,
+                "predicted_success_probability": 0.5,
+                "total_reviews": 200 + index,
+                "positive_rate": 0.8,
+                "reviews_30d": 20,
+                "reviews_90d": 160,
+                "release_year": 2026,
+            })
+        for index in range(24):
+            rows.append({
+                "appid": 4000 + index,
+                "name": f"Flat Puzzle {index}",
+                "genres": "Puzzle",
+                "steam_tags": "Puzzle, Cozy",
+                "categories": "Single-player",
+                "success": 1 if index < 12 else 0,
+                "predicted_success_probability": 0.5,
+                "total_reviews": 200 + index,
+                "positive_rate": 0.8,
+                "reviews_30d": 100,
+                "reviews_90d": 110,
+                "release_year": 2025,
+            })
+        for index in range(2):
+            rows.append({
+                "appid": 5000 + index,
+                "name": f"Tiny Perfect {index}",
+                "genres": "Tiny Perfect",
+                "steam_tags": "Tiny Perfect, Viral",
+                "categories": "Single-player",
+                "success": 1,
+                "predicted_success_probability": 1.0,
+                "total_reviews": 50,
+                "positive_rate": 1.0,
+                "reviews_30d": 10,
+                "reviews_90d": 100,
+                "release_year": 2026,
+            })
+
+        payload = build_market_insight_payload(pd.DataFrame(rows), pd.DataFrame(), sample_feature_importance())
+        opportunities = cast(list[dict[str, object]], payload["combination_opportunities"])
+        eligible = [row for row in opportunities if bool(row["rank_eligible"])]
+        tiny = next(row for row in opportunities if row["combination"] == "Tiny Perfect + Viral")
+
+        self.assertEqual(eligible[0]["combination"], "Action + Co-op")
+        self.assertGreater(float(str(eligible[0]["review_growth_ratio"])), float(str(eligible[1]["review_growth_ratio"])))
+        self.assertFalse(bool(tiny["rank_eligible"]))
+        self.assertEqual(tiny["growth_label"], "탐색 후보 / 표본 부족")
+
+
+    def test_market_site_initial_render_targets_exist_and_strategy_tags_are_safe(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = write_market_insight_site(Path(temp_dir), sample_dataset(), pd.DataFrame(), sample_feature_importance())
+            html = output.read_text(encoding="utf-8")
+
+        self.assertIn('id="semanticModel"', html)
+        self.assertIn("const selectedState = { genres:new Set(), strategy_tags:new Set(), tags:new Set() };", html)
+        self.assertIn("const stateSet = selectedSet(type);", html)
+        self.assertNotIn("selectedState[type].has(value)", html)
+
+    def test_growth_combinations_render_as_readable_cards_not_dense_tables(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = write_market_insight_site(Path(temp_dir), sample_dataset(), pd.DataFrame(), sample_feature_importance())
+            html = output.read_text(encoding="utf-8")
+
+        self.assertIn("opportunity-list", html)
+        self.assertIn("opportunity-card", html)
+        self.assertIn("score-badge", html)
+        self.assertIn("evidence-list", html)
+        self.assertIn("renderOpportunityCards", html)
+        self.assertNotIn("모델 기획 잠재력", html)
+        self.assertIn("관측 결과", html)
+
+
+    def test_market_site_keeps_low_impact_options_selectable_and_styles_dense_controls(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = write_market_insight_site(Path(temp_dir), sample_dataset(), pd.DataFrame(), sample_feature_importance())
+            html = output.read_text(encoding="utf-8")
+
+        self.assertIn("input[type=\"search\"]", html)
+        self.assertIn(".table-wrap", html)
+        self.assertIn(":focus-visible", html)
+        self.assertIn("aria-selected", html)
+        self.assertIn("button.disabled = !active && !hasGames;", html)
+        self.assertNotIn("impact < 0.005", html)
+
+
+    def test_market_site_planner_explains_baseline_and_links_diagnosis_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = write_market_insight_site(Path(temp_dir), sample_dataset(), pd.DataFrame(), sample_feature_importance())
+            html = output.read_text(encoding="utf-8")
+
+        self.assertIn("planningActions", html)
+        self.assertIn("선택 조건 최적화", html)
+        self.assertIn("선택 전 기준선", html)
+        self.assertIn("전체 관측 성공률", html)
+        self.assertIn("scrollToPlannerReference('selectedGames')", html)
+        self.assertIn("scrollToPlannerReference('riskReferenceGames')", html)
+        self.assertIn("선택 참고게임 보기", html)
+        self.assertIn("선택 실패/주의 사례 보기", html)
+        self.assertNotIn("근거 사례 보기", html)
+        self.assertIn("관측 실패/주의 사례", html)
+        self.assertNotIn("위험 사례", html)
+
+    def test_market_site_handles_missing_images_external_data_and_architecture_section(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = write_market_insight_site(Path(temp_dir), sample_dataset(), pd.DataFrame(), sample_feature_importance())
+            html = output.read_text(encoding="utf-8")
+
+        self.assertIn("image-placeholder", html)
+        self.assertIn("이미지 없음", html)
+        self.assertIn("renderModelArchitecture", html)
+        self.assertIn("modelArchitecture", html)
+        self.assertIn("모델·파이프라인 구조", html)
+        self.assertIn("value.enabled", html)
+        self.assertIn("표시 가능한 평점 서비스 데이터가 없습니다", html)
+        self.assertIn("renderTrendTable", html)
+        self.assertIn("table-wrap", html)
 
 
 if __name__ == "__main__":

@@ -73,7 +73,7 @@ def _service_market_conclusion(reports_dir: Path) -> str:
     negative = negative_source.sort_values(by=["review_count"], ascending=False).head(3)
     positive_terms = "; ".join(f"{row['genre']}: {row['top_terms']}" for row in _records(positive)) or "데이터 부족"
     negative_terms = "; ".join(f"{row['genre']}: {row['top_terms']}" for row in _records(negative)) or "데이터 부족"
-    return f"시장 분석에서는 성공확률 상위 장르의 긍정 키워드({positive_terms})를 신작 포지셔닝 메시지와 Steam 태그 전략에 반영하는 것이 우선이다. 서비스 개선에서는 성공/실패 게임의 부정 키워드({negative_terms})를 출시 직후 패치, 튜토리얼, 밸런스, 콘텐츠 보강 우선순위로 관리해야 한다."
+    return f"시장 분석에서는 성장 조합의 긍정 키워드({positive_terms})를 신작 포지셔닝 메시지와 Steam 태그 전략에 반영하는 것이 우선이다. 서비스 개선에서는 성공/실패 게임의 부정 키워드({negative_terms})를 출시 직후 패치, 튜토리얼, 밸런스, 콘텐츠 보강 우선순위로 관리해야 한다."
 
 
 def summarize_pdf(pdf_path: Path, output_path: Path) -> None:
@@ -138,7 +138,7 @@ PYTHONPATH=src python3 -m steam_success.pipeline --max-apps 250
 - 최종 실행 요약: `reports/RUN_SUMMARY.md`
 - 장르별 결론: `reports/CONCLUSIONS.md`
 - 모델 성능표: `reports/model_metrics.csv`
-- 게임별 예측 확률: `reports/predictions.csv`
+- 게임별 기획 확률: `reports/predictions.csv`
 - 인터랙티브 HTML 리포트: `reports/interactive_report.html`
 - 시각화 이미지: `reports/figures/`
 - 학습 데이터: `data/processed/modeling_dataset.csv`
@@ -151,7 +151,7 @@ def write_architecture_doc(docs_dir: Path) -> None:
     text = """# 프로그램 아키텍처 문서
 
 ## 목적
-Steam 상점에서 새로 출시된 게임 후보를 직접 크롤링하고, Steam Store API와 Steam Reviews API로 보강한 뒤, 출시 성공 가능성을 분류 모델로 예측한다.
+Steam 상점에서 새로 출시된 게임 후보를 직접 크롤링하고, Steam Store API와 Steam Reviews API로 보강한 뒤, 출시 성공 가능성을 분류 모델로 기획한다.
 
 ## 사용 언어와 라이브러리
 - 언어: Python 3.12
@@ -182,14 +182,14 @@ src/steam_success/
 5. `features`: 출시 전/초기에도 알 수 있는 가격, 장르 수, 카테고리 수, 언어 수, 플랫폼, 멀티플레이 여부 등을 입력 변수로 만든다.
 6. `models`: Logistic Regression과 Random Forest를 비교하고 F1 중심으로 최적 모델을 저장한다.
 7. `visualize`: 라벨 분포, 리뷰-긍정률 산점도, 변수 중요도, 작업 흐름 도식 PNG를 생성한다.
-8. `reporting/web_report`: Markdown 결론과 HTML 리포트에 "그래서 성공할 것으로 예측되는 게임" 답변을 포함한다.
+8. `reporting/web_report`: Markdown 결론과 HTML 리포트에 "그래서 성공할 것으로 기획되는 게임" 답변을 포함한다.
 
 ## 산출물 위치
 - 원천 데이터: `data/raw/`
 - 병합/정제 데이터: `data/interim/`
 - 모델 학습 데이터: `data/processed/`
 - 학습 모델: `models/steam_success_model.joblib`
-- 평가/예측/차트: `reports/`
+- 평가/기획/차트: `reports/`
 - 아키텍처/메모/PDF 요약: `docs/`
 
 ## 유지보수 기준
@@ -205,7 +205,7 @@ def write_assumptions_doc(docs_dir: Path, dataset: pd.DataFrame, result: dict[st
 ## 임의로 정한 기준
 - 성공 기준: 전체 리뷰 수 {SETTINGS.success_review_threshold:,}개 이상이고 긍정률 {SETTINGS.success_positive_rate_threshold:.0%} 이상인 게임을 성공으로 정의했다.
 - 기간 기준: Steam Reviews API의 무료 공개 요약은 특정 출시 후 90일 누적치를 안정적으로 직접 제공하지 않으므로, 이번 작동 모델은 현재 시점 누적 리뷰를 성공 대체 지표로 사용했다.
-- 예측 입력: 출시 후 결과 변수인 리뷰 수와 긍정률은 라벨 생성에만 사용하고 모델 입력에서는 제외했다.
+- 기획 입력: 출시 후 결과 변수인 리뷰 수와 긍정률은 라벨 생성에만 사용하고 모델 입력에서는 제외했다.
 - 수집 범위: Steam `popularnew` 검색 페이지에서 직접 크롤링한 appid 샘플을 사용했다.
 
 ## 실제 수집 데이터와 PDF/초기 기획 차이
@@ -276,7 +276,7 @@ def write_run_summary(reports_dir: Path, dataset: pd.DataFrame, result: dict[str
     best_row = metrics.sort_values(["f1", "recall", "accuracy"], ascending=False).iloc[0].to_dict()
     top_features = pd.read_csv(reports_dir / "feature_importance.csv").head(8)
     text = [
-        "# Steam 출시 성공 예측 모델 실행 결과",
+        "# Steam 출시 성공 기획 모델 실행 결과",
         "",
         f"- 모델링 데이터 수: {len(dataset)}",
         f"- 성공 라벨 수: {len(dataset[dataset['success'] == 1])}",
@@ -291,22 +291,21 @@ def write_run_summary(reports_dir: Path, dataset: pd.DataFrame, result: dict[str
     ]
     text += [f"- {row['feature']}: {_as_float(row['importance']):.4f}" for row in _records(top_features)]
     criteria_tables = build_criteria_tables(dataset)
-    predicted_game = top_predicted_game(reports_dir)
+    opportunity = _top_opportunity_from_criteria(criteria_tables)
     genre_summary = criteria_tables["genre"]
     for name, table in criteria_tables.items():
         table.to_csv(reports_dir / f"criteria_{name}.csv", index=False)
     conclusion_path = reports_dir / "CONCLUSIONS.md"
-    write_conclusions_doc(conclusion_path, dataset, best_row, criteria_tables, predicted_game)
-    if predicted_game:
+    write_conclusions_doc(conclusion_path, dataset, best_row, criteria_tables, opportunity)
+    if opportunity:
         text += [
             "",
-            "## 그래서 성공할 것으로 예측되는 게임",
-            f"- [{predicted_game['name']}]({predicted_game['steam_url']})",
-            f"- 예측 성공 확률: {_as_float(predicted_game['predicted_success_probability']):.1%}",
-            f"- 현재 성공 기준 충족 여부: {'충족' if predicted_game['success'] else '미충족'}",
-            f"- 리뷰 수/긍정률: {_as_int(predicted_game['total_reviews']):,}개 / {_as_float(predicted_game['positive_rate']):.1%}",
+            "## 성공 가능성이 높은 기획/장르·태그 조합",
+            f"- 기획 조합: {opportunity['name']}",
+            f"- 관측 성공률: {_as_float(opportunity['success_rate']):.1%}",
+            f"- 근거 표본: {_as_int(opportunity['game_count']):,}개",
         ]
-    text += ["", "## 성공확률 상위 장르 리뷰 토픽 분석"]
+    text += ["", "## 성장 조합 리뷰 토픽 분석"]
     text += _review_topic_lines(reports_dir)
     text += ["", "## 서비스 개선 및 시장 분석 결론", _service_market_conclusion(reports_dir)]
     text += ["", "## 장르별 결론 상위 항목"]
@@ -431,6 +430,14 @@ def _truthy(value: object) -> bool:
     text = str(value).strip().lower()
     return text in {"true", "1", "yes", "y"}
 
+def _top_opportunity_from_criteria(criteria_tables: dict[str, pd.DataFrame]) -> dict[str, object]:
+    genre = _rank_eligible_rows(criteria_tables["genre"])
+    if genre.empty:
+        return {}
+    row = genre.iloc[0].to_dict()
+    return {"name": row.get("criteria_value", ""), "success_rate": row.get("success_rate", 0), "game_count": row.get("game_count", 0)}
+
+
 def write_conclusions_doc(output_path: Path, dataset: pd.DataFrame, best_row: dict[str, object], criteria_tables: dict[str, pd.DataFrame], predicted_game: dict[str, object]) -> None:
     total = len(dataset)
     success_count = len(dataset[dataset["success"] == 1])
@@ -448,15 +455,15 @@ def write_conclusions_doc(output_path: Path, dataset: pd.DataFrame, best_row: di
     accuracy = raw_accuracy if isinstance(raw_accuracy, float | int) else 0.0
     f1 = raw_f1 if isinstance(raw_f1, float | int) else 0.0
     if predicted_game:
-        predicted_answer = f"""현재 모델이 가장 성공 가능성이 높다고 예측한 게임은 [{predicted_game['name']}]({predicted_game['steam_url']})이다. 예측 성공 확률은 {_as_float(predicted_game['predicted_success_probability']):.1%}이며, 현재 수집 기준에서는 리뷰 {_as_int(predicted_game['total_reviews']):,}개와 긍정률 {_as_float(predicted_game['positive_rate']):.1%}로 성공 기준을 {'충족' if predicted_game['success'] else '충족하지 못했다'}."""
+        predicted_answer = f"""현재 관측 표본에서 성공 가능성이 높은 기획 조합은 {predicted_game['name']}이다. 관측 성공률은 {_as_float(predicted_game['success_rate']):.1%}이며, 근거 표본은 {_as_int(predicted_game['game_count']):,}개다."""
     else:
-        predicted_answer = "예측 결과 파일이 없어 특정 게임을 지목할 수 없다."
+        predicted_answer = "충분 표본을 만족한 기획 조합 데이터가 부족하다."
     text = f"""# 실제 결론 및 해석
 
 ## 핵심 결론
 이번 수집 데이터에서는 성공 라벨이 {success_count}개, 비성공 라벨이 {failure_count}개이며 성공 라벨 비율은 {success_rate:.1%}이다. 이 비율은 Steam 전체 시장 성공률이 아니라 `popularnew` 검색 결과에서 수집된 표본과 현재 성공 기준에 따른 학습용 라벨 분포다.
 
-## 그래서 성공할 것으로 예측되는 게임은 뭔가?
+## 성공 가능성이 높은 기획/장르·태그 조합은 뭔가?
 {predicted_answer}
 
 ## 성공 게임이 많이 나타난 장르
@@ -465,7 +472,7 @@ def write_conclusions_doc(output_path: Path, dataset: pd.DataFrame, best_row: di
 ## 다양한 기준별 결과
 {_criteria_markdown(criteria_tables)}
 
-## 성공확률 상위 장르의 성공/실패 게임 리뷰 토픽
+## 성장 조합의 성공/실패 게임 리뷰 토픽
 {chr(10).join(_review_topic_lines(output_path.parent))}
 
 ## 게임 서비스 개선 및 시장 분석 결론

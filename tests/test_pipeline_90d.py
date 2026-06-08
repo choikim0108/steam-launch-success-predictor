@@ -64,7 +64,9 @@ class Pipeline90dTests(unittest.TestCase):
             interactive_html = (reports_dir / "interactive_report.html").read_text(encoding="utf-8")
             self.assertIn("모집단 coverage", market_html)
             self.assertIn("review_count_90d", market_html)
-            self.assertIn("그래서 성공할 것으로 예측되는 게임은 뭔가?", interactive_html)
+            self.assertIn("성공 가능성이 높은 기획/장르·태그 조합은 뭔가?", interactive_html)
+            self.assertNotIn("그래서 성공할 것으로 예측되는 게임은 뭔가?", interactive_html)
+            self.assertNotIn("성공할 것으로 예측", market_html + interactive_html + run_summary)
 
 
 if __name__ == "__main__":

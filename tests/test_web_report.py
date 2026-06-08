@@ -288,11 +288,29 @@ class WebReportTests(unittest.TestCase):
 
         self.assertIn("의미 모델·추천 신뢰도", html)
         self.assertIn("외부 데이터 상태", html)
-        self.assertIn("성공/실패 참고 게임 선정 근거", html)
+        self.assertIn("관측 성공/실패 근거 사례", html)
         self.assertIn("항목별 신뢰도", html)
-        self.assertIn("선정 근거", html)
-        self.assertIn("리뷰 근거 없는 참고", html)
-        self.assertIn("웹진 RSS/검색 경로 사용 가능", html)
+        self.assertIn("근거 사례", html)
+        self.assertNotIn("리뷰 근거 없는 참고", html)
+        self.assertNotIn("리뷰 근거 있는 참고", html)
+        self.assertNotIn("웹진 RSS/검색 경로 사용 가능", html)
+        self.assertIn("표시 가능한 평점 서비스 데이터가 없습니다", html)
+
+
+    def test_interactive_report_answers_with_opportunity_combination_not_single_game_prediction(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reports_dir = Path(temp_dir)
+            pd.DataFrame([{"model": "RandomForest", "f1": 0.8, "recall": 0.7, "accuracy": 0.75}]).to_csv(reports_dir / "model_metrics.csv", index=False)
+            pd.DataFrame([{"appid": 10, "name": "Reference Success", "success": 1, "total_reviews": 900, "positive_rate": 0.91, "predicted_success_probability": 0.82}]).to_csv(reports_dir / "predictions.csv", index=False)
+            pd.DataFrame([{"criteria_value": "Action", "success_rate": 0.5, "success_count": 1, "game_count": 2}]).to_csv(reports_dir / "criteria_genre.csv", index=False)
+
+            write_interactive_report(reports_dir, sample_dataset())
+            html = (reports_dir / "interactive_report.html").read_text(encoding="utf-8")
+
+        self.assertIn("성공 가능성이 높은 기획/장르·태그 조합은 뭔가?", html)
+        self.assertIn("기획 조합", html)
+        self.assertNotIn("그래서 성공할 것으로 예측되는 게임은 뭔가?", html)
+        self.assertNotIn("예측 성공 확률", html)
 
 
 if __name__ == "__main__":

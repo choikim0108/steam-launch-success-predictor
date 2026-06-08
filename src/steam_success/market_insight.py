@@ -45,17 +45,19 @@ def build_market_insight_payload(dataset: pd.DataFrame, review_topics: pd.DataFr
     tags = _ranked_terms(data, tag_column)
     market_trends = [row for row in genres if not _is_strategy_tag(str(row.get("name", "")))]
     review_evidence = _review_evidence(samples)
+    combination_opportunities = _combination_opportunities(data)
     return {
         "project": {
             "title": "Steam 시장 트렌드·장르 잠재력 분석 도구",
             "mode": "static_html",
             "model_1": "장르별 상대 기준 기반 성공 분류 모델",
-            "model_2": "기획 인사이트 추천 엔진",
+            "model_2": "조합 단위 집계 모델",
         },
         "summary": _summary(data),
         "developer_inputs": _developer_inputs(data, genres, tags),
-        "developer_guidance": _developer_guidance(data, genres, tags),
+        "developer_guidance": _developer_guidance(data, combination_opportunities),
         "semantic_model": _semantic_model(data),
+        "combination_opportunities": combination_opportunities,
         "market_trends": market_trends,
         "tag_trends": tags,
         "games": _game_catalog(data, review_evidence),
@@ -86,10 +88,6 @@ def _prepared(dataset: pd.DataFrame) -> pd.DataFrame:
         "has_multiplayer": False,
         "review_count_30d": 0,
         "review_count_90d": 0,
-        "external_attention_score": 0,
-        "webzine_mentions": 0,
-        "youtube_mentions": 0,
-        "blog_mentions": 0,
         "metacritic_score": 0,
         "coming_soon": False,
     }
@@ -157,40 +155,39 @@ def _developer_checkbox_fields(data: pd.DataFrame) -> list[str]:
     return fields + [field for field in optional if field in data.columns]
 
 
-def _developer_guidance(data: pd.DataFrame, genres: list[dict[str, object]], tags: list[dict[str, object]]) -> dict[str, object]:
-    eligible_rows = [row for row in genres + tags if not _is_strategy_tag(str(row.get("name", "")))]
-    opportunity = _first_trend(eligible_rows, "상승") or _first_trend(eligible_rows, "유지")
-    risk = _first_trend(list(reversed(eligible_rows)), "하락")
+def _developer_guidance(data: pd.DataFrame, opportunities: list[dict[str, object]]) -> dict[str, object]:
+    eligible_opportunities = [row for row in opportunities if bool(row.get("rank_eligible", False))]
+    opportunity = eligible_opportunities[0] if eligible_opportunities else None
+    exploratory = next((row for row in opportunities if not bool(row.get("rank_eligible", False))), None)
     average_price = _mean(data, "price_final_usd")
     average_languages = _mean(data, "supported_language_count")
-    average_prediction = _mean(data, "predicted_success_probability")
     cards: list[dict[str, object]] = []
     if opportunity:
         cards.append({
-            "title": "기회 조합",
-            "signal": str(opportunity["name"]),
-            "action": f"{opportunity['name']} 방향은 평균 예측 {_float(opportunity['average_prediction']):.1%}입니다. 먼저 작은 범위의 핵심 루프를 만들고 유사 성공작 리뷰를 비교하세요.",
-            "evidence": f"표본 {_int(opportunity['game_count'])}개, 성공률 {_float(opportunity['success_rate']):.1%}",
+            "title": "성장 조합",
+            "signal": str(opportunity["combination"]),
+            "action": f"{opportunity['combination']} 조합은 관측 성공률과 30→90일 리뷰 성장 근거가 함께 확인됩니다. 유사 사례 리뷰를 먼저 비교하세요.",
+            "evidence": " · ".join(cast(list[str], opportunity["evidence_lines"])),
         })
-    if risk:
+    if exploratory:
         cards.append({
-            "title": "주의 조합",
-            "signal": str(risk["name"]),
-            "action": f"{risk['name']} 방향은 하락 신호입니다. 차별화 포인트, 리뷰 불만 키워드, 가격 저항을 먼저 검증하세요.",
-            "evidence": f"평균 예측 {_float(risk['average_prediction']):.1%}, 성공률 {_float(risk['success_rate']):.1%}",
+            "title": "탐색 후보",
+            "signal": str(exploratory["combination"]),
+            "action": "표본 부족 조합은 강한 추천을 하지 않고 후보 검증 대상으로만 둡니다.",
+            "evidence": " · ".join(cast(list[str], exploratory["evidence_lines"])),
         })
     cards.append({
         "title": "출시 준비 기준선",
         "signal": f"평균 가격 ${average_price:.2f} · 평균 언어 {average_languages:.1f}개",
-        "action": "내 게임 진단 탭에서 가격, 언어 수, 출시월을 직접 넣고 성공/위험 레퍼런스가 어떻게 바뀌는지 확인하세요.",
-        "evidence": f"전체 평균 예측 {average_prediction:.1%}",
+        "action": "내 기획 진단 탭에서 장르/태그와 상세 조건을 입력하고 관측 표본 기반 잠재력과 근거 사례를 확인하세요.",
+        "evidence": f"전체 관측 성공률 {_float(_numeric_series(data, 'success').mean()) if len(data) else 0.0:.1%}",
     })
     return {
-        "name": "기획 인사이트 추천 엔진",
-        "purpose": "성공확률을 설명 가능한 개발 액션으로 바꾸는 보조 모델",
+        "name": "조합 단위 집계 모델",
+        "purpose": "선택한 장르/태그 기획의 잠재력을 관측 표본, 성공률, 리뷰 성장률, 최근성으로 설명하는 모델",
         "minimum_recommendation_sample": SETTINGS.market_trend_min_sample,
         "cards": cards,
-        "checklist": ["상승 장르/태그에서 핵심 루프 검증", "하락 조합은 차별화와 가격 저항 검증", "성공 레퍼런스 3개와 위험 레퍼런스 3개 리뷰 비교", "출시 전 언어 수와 Steam 기능 지원 범위 결정"],
+        "checklist": ["성장 조합에서 핵심 루프 검증", "표본 부족 조합은 탐색 후보로만 해석", "관측 성공/중박/실패 사례 리뷰 비교", "출시 전 언어 수와 Steam 기능 지원 범위 결정"],
     }
 
 
@@ -225,7 +222,7 @@ def _confidence_summary(data: pd.DataFrame) -> dict[str, object]:
     games = [_game_confidence(row) for row in cast(list[dict[str, object]], data.to_dict(orient="records"))]
     counts = {label: games.count(label) for label in ["높음", "중간", "낮음"]}
     coverage = _coverage_summary(data)
-    return {"label": _dataset_confidence(data, coverage), "counts": counts, "basis": "리뷰 규모, 긍정률, 표본 수, 모집단 coverage, 외부 owners/webzine 보유 여부를 함께 본 보수적 신뢰도", "coverage": coverage}
+    return {"label": _dataset_confidence(data, coverage), "counts": counts, "basis": "리뷰 규모, 긍정률, 표본 수, 모집단 coverage, 평점 서비스 매칭 여부를 함께 본 보수적 신뢰도", "coverage": coverage}
 
 
 def _business_model(row: dict[str, object]) -> str:
@@ -296,13 +293,6 @@ def _game_confidence(row: dict[str, object]) -> str:
     return "낮음"
 
 
-def _first_trend(rows: list[dict[str, object]], trend: str) -> dict[str, object] | None:
-    for row in rows:
-        if str(row.get("trend", "")) == trend:
-            return row
-    return None
-
-
 def _is_genre_term(name: str) -> bool:
     return _strategy_tag_key(name) not in NON_GENRE_TERMS
 
@@ -321,6 +311,108 @@ def _strategy_tag_key(name: str) -> str:
 
 def _is_genre_like_tag(name: str) -> bool:
     return name.strip().lower() in GENRE_LIKE_TAGS
+
+
+def _combination_opportunities(data: pd.DataFrame) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    if data.empty:
+        return []
+    for row in cast(list[dict[str, object]], data.to_dict(orient="records")):
+        genres = [term for term in _split_terms(row.get("genres", "")) if _is_genre_term(term)]
+        tags = [term for term in _split_terms(row.get("steam_tags", row.get("categories", ""))) if term not in genres and not _is_strategy_tag(term)]
+        for genre in genres:
+            candidates: list[tuple[str, ...]] = [(genre,)]
+            for tag in tags[:8]:
+                candidates.append((genre, tag))
+            for first_index, first in enumerate(tags[:8]):
+                for second in tags[first_index + 1:8]:
+                    candidates.append((genre, first, second))
+            for combo in candidates:
+                rows.append({
+                    "combination": " + ".join(combo),
+                    "success": _int(row.get("success", 0)),
+                    "reviews_30d": _int(row.get("review_count_30d", row.get("reviews_30d", 0))),
+                    "reviews_90d": _int(row.get("review_count_90d", row.get("reviews_90d", row.get("total_reviews", 0)))),
+                    "release_year": _int(row.get("release_year", _release_year(row.get("release_date", "")))),
+                    "price_final_usd": _float(row.get("price_final_usd", 0)),
+                    "supported_language_count": _int(row.get("supported_language_count", 0)),
+                    "platform_count": _platform_count(row),
+                    "review_evidence": 1 if _int(row.get("total_reviews", 0)) > 0 else 0,
+                    "name": _text(row.get("name", "")),
+                    "combo_size": len(combo),
+                })
+    if not rows:
+        return []
+    frame = pd.DataFrame(rows)
+    grouped = cast(pd.DataFrame, frame.groupby("combination", as_index=False).agg(
+        game_count=("success", "size"),
+        success_count=("success", "sum"),
+        avg_reviews_30d=("reviews_30d", "mean"),
+        avg_reviews_90d=("reviews_90d", "mean"),
+        recent_count=("release_year", lambda values: int(sum(1 for value in values if _int(value) >= 2026))),
+        avg_price=("price_final_usd", "mean"),
+        avg_language_count=("supported_language_count", "mean"),
+        avg_platform_count=("platform_count", "mean"),
+        review_evidence_count=("review_evidence", "sum"),
+        example_names=("name", lambda values: [str(value) for value in list(values)[:3] if str(value)]),
+        combo_size=("combo_size", "max"),
+    ))
+    global_rate = _float(_numeric_series(data, "success").mean()) if len(data) else 0.0
+    grouped["success_rate"] = grouped["success_count"] / grouped["game_count"]
+    grouped["observed_success_rate"] = grouped["success_rate"]
+    grouped["smoothed_success_rate"] = (grouped["success_count"] + SETTINGS.criteria_smoothing_alpha * global_rate) / (grouped["game_count"] + SETTINGS.criteria_smoothing_alpha)
+    grouped["review_growth_ratio"] = grouped.apply(lambda row: _review_growth_ratio(_float(row["avg_reviews_30d"]), _float(row["avg_reviews_90d"])), axis=1)
+    grouped["recent_share"] = grouped["recent_count"] / grouped["game_count"]
+    grouped["rank_eligible"] = (grouped["game_count"] >= SETTINGS.market_trend_min_sample) & (grouped["combo_size"] > 1)
+    grouped["sample_status"] = grouped["rank_eligible"].map(lambda eligible: "충분" if bool(eligible) else "표본 부족")
+    grouped["opportunity_score"] = grouped.apply(_opportunity_score, axis=1)
+    grouped["growth_label"] = grouped.apply(_opportunity_growth_label, axis=1)
+    grouped["evidence_lines"] = grouped.apply(_opportunity_evidence_lines, axis=1)
+    grouped["recommended_combinations"] = grouped["combination"].map(lambda value: [part.strip() for part in str(value).split("+") if part.strip()][1:])
+    ranked = cast(pd.DataFrame, grouped.sort_values(["rank_eligible", "opportunity_score", "combo_size", "smoothed_success_rate", "game_count"], ascending=False))
+    columns = ["combination", "game_count", "success_count", "success_rate", "observed_success_rate", "smoothed_success_rate", "avg_reviews_30d", "avg_reviews_90d", "review_growth_ratio", "recent_share", "opportunity_score", "growth_label", "sample_status", "rank_eligible", "evidence_lines", "recommended_combinations", "example_names", "avg_price", "avg_language_count", "avg_platform_count", "review_evidence_count", "combo_size"]
+    output = cast(pd.DataFrame, ranked.loc[:, columns].head(40))
+    return cast(list[dict[str, object]], output.to_dict(orient="records"))
+
+
+def _release_year(value: object) -> int:
+    text = _text(value)
+    if len(text) >= 4 and text[:4].isdigit():
+        return int(text[:4])
+    return 0
+
+
+def _review_growth_ratio(reviews_30d: float, reviews_90d: float) -> float:
+    if reviews_30d <= 0:
+        return 0.0 if reviews_90d <= 0 else reviews_90d
+    return reviews_90d / reviews_30d
+
+
+def _opportunity_score(row: pd.Series) -> float:
+    sample_factor = min(1.0, _float(row["game_count"]) / SETTINGS.market_trend_min_sample)
+    growth_factor = min(1.0, max(0.0, (_float(row["review_growth_ratio"]) - 1.0) / 4.0))
+    evidence_factor = min(1.0, _float(row.get("review_evidence_count", 0)) / max(1.0, _float(row["game_count"])))
+    return min(1.0, _float(row["smoothed_success_rate"]) * 0.42 + _float(row["success_rate"]) * 0.22 + sample_factor * 0.16 + growth_factor * 0.12 + _float(row["recent_share"]) * 0.05 + evidence_factor * 0.03)
+
+
+def _opportunity_growth_label(row: pd.Series) -> str:
+    if not bool(row["rank_eligible"]):
+        return "탐색 후보 / 표본 부족"
+    if _float(row["opportunity_score"]) >= SETTINGS.outcome_success_probability_threshold:
+        return "성장 조합"
+    if _float(row["opportunity_score"]) >= 0.45:
+        return "관찰 유지"
+    return "주의 조합"
+
+
+def _opportunity_evidence_lines(row: pd.Series) -> list[str]:
+    base = f"표본 {_int(row['game_count'])}개, 관측 성공률 {_float(row['success_rate']):.1%}, 30→90일 리뷰 {_float(row['review_growth_ratio']):.1f}배"
+    recent = f"최근 출시 비중 {_float(row['recent_share']):.1%}, smoothed 성공률 {_float(row['smoothed_success_rate']):.1%}"
+    examples = cast(list[str], row.get("example_names", []))
+    example_line = "성공 사례 " + "/".join(examples[:2]) if examples else "근거 사례 데이터 부족"
+    if not bool(row["rank_eligible"]):
+        return [base, "표본 부족이므로 강한 추천을 하지 않습니다.", example_line]
+    return [base, recent, example_line]
 
 
 def _ranked_terms(data: pd.DataFrame, column: str) -> list[dict[str, object]]:
@@ -357,7 +449,7 @@ def _ranked_terms(data: pd.DataFrame, column: str) -> list[dict[str, object]]:
 
 
 def _similar_games(data: pd.DataFrame, review_evidence: dict[int, dict[str, object]]) -> dict[str, object]:
-    ranked = cast(pd.DataFrame, data.sort_values("predicted_success_probability", ascending=False))
+    ranked = cast(pd.DataFrame, data.sort_values(["success", "total_reviews", "positive_rate"], ascending=False))
     success_values = _numeric_series(ranked, "success").astype(int)
     success_mask = success_values == 1
     risk_mask = success_values == 0
@@ -365,32 +457,16 @@ def _similar_games(data: pd.DataFrame, review_evidence: dict[int, dict[str, obje
     risk_candidates = cast(pd.DataFrame, ranked[risk_mask]).tail(8)
     success_rows = [_game_row(row, review_evidence) for row in cast(list[dict[str, object]], success_candidates.to_dict(orient="records"))]
     risk_rows = [_game_row(row, review_evidence) for row in cast(list[dict[str, object]], risk_candidates.to_dict(orient="records"))]
-    success_examples, success_without = _split_review_backed_games(success_rows)
-    risk_examples, risk_without = _split_review_backed_games(risk_rows)
     return {
-        "success_examples": success_examples,
-        "risk_examples": risk_examples,
-        "success_without_review_evidence": success_without,
-        "risk_without_review_evidence": risk_without,
+        "success_examples": success_rows,
+        "risk_examples": risk_rows,
         "success_average": _group_average(success_candidates),
         "risk_average": _group_average(risk_candidates),
     }
 
 
-def _split_review_backed_games(rows: list[dict[str, object]]) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
-    backed: list[dict[str, object]] = []
-    without: list[dict[str, object]] = []
-    for row in rows:
-        evidence = cast(dict[str, object], row.get("review_evidence", {}))
-        if _int(evidence.get("sample_count", 0)) >= SETTINGS.reference_review_min_samples:
-            backed.append(row)
-        else:
-            without.append(row)
-    return backed, without
-
-
 def _game_catalog(data: pd.DataFrame, review_evidence: dict[int, dict[str, object]]) -> list[dict[str, object]]:
-    ranked = cast(pd.DataFrame, data.sort_values("predicted_success_probability", ascending=False))
+    ranked = cast(pd.DataFrame, data.sort_values(["success", "total_reviews", "positive_rate"], ascending=False))
     return [_game_row(row, review_evidence) for row in cast(list[dict[str, object]], ranked.to_dict(orient="records"))]
 
 
@@ -417,7 +493,7 @@ def _game_row(row: dict[str, object], review_evidence: dict[int, dict[str, objec
         "total_reviews": _int(row.get("total_reviews", 0)),
         "positive_rate": _float(row.get("positive_rate", 0)),
         "predicted_success_probability": _float(row.get("predicted_success_probability", 0)),
-        "outcome_label": _outcome_label(_float(row.get("predicted_success_probability", 0))),
+        "outcome_label": _observed_outcome_label(row),
         "model_opinion": _model_opinion(row),
         "business_model": _business_model(row),
         "lifecycle": _lifecycle(row),
@@ -513,33 +589,35 @@ def _empty_review_evidence() -> dict[str, object]:
 
 
 def _reference_reason(row: dict[str, object], evidence: dict[str, object]) -> str:
-    probability = _float(row.get("predicted_success_probability", 0))
     reviews = _int(row.get("total_reviews", 0))
     positive_rate = _float(row.get("positive_rate", 0))
     sample_count = _int(evidence.get("sample_count", 0))
+    label = _observed_outcome_label(row)
     if sample_count:
-        return f"선정 근거: 예측 {probability:.1%}, 전체 리뷰 {reviews:,}개, 긍정률 {positive_rate:.1%}. 크롤링 리뷰 {sample_count}개에서 긍정 키워드({evidence.get('positive_terms')})와 부정 키워드({evidence.get('negative_terms')})를 확인했습니다."
-    return f"선정 근거: 예측 {probability:.1%}, 전체 리뷰 {reviews:,}개, 긍정률 {positive_rate:.1%}. 이 게임은 리뷰 본문 표본이 없어 모델 지표와 Steam 메타데이터만으로 참고 사례에 포함했습니다."
+        return f"근거 사례: 관측 결과 {label}, 90일 리뷰 {reviews:,}개, 90일 긍정률 {positive_rate:.1%}. 크롤링 리뷰 {sample_count}개에서 긍정 키워드({evidence.get('positive_terms')})와 부정 키워드({evidence.get('negative_terms')})를 확인했습니다."
+    return f"근거 사례: 관측 결과 {label}, 90일 리뷰 {reviews:,}개, 90일 긍정률 {positive_rate:.1%}. Steam 메타데이터와 관측 성과 기준으로 참고 사례에 포함했습니다."
 
 
-def _outcome_label(probability: float) -> str:
-    if probability >= SETTINGS.outcome_success_probability_threshold:
+def _observed_outcome_label(row: dict[str, object]) -> str:
+    if _int(row.get("success", 0)) == 1:
         return "성공"
-    if probability >= SETTINGS.outcome_mid_probability_threshold:
+    reviews = _int(row.get("total_reviews", 0))
+    positive_rate = _float(row.get("positive_rate", 0))
+    if reviews >= max(1, SETTINGS.success_review_threshold // 5) and positive_rate >= SETTINGS.success_positive_rate_threshold * 0.75:
         return "중박"
     return "실패"
 
 
 def _model_opinion(row: dict[str, object]) -> str:
-    probability = _float(row.get("predicted_success_probability", 0))
     reviews = _int(row.get("total_reviews", 0))
     positive_rate = _float(row.get("positive_rate", 0))
     languages = _int(row.get("supported_language_count", 0))
-    if probability >= SETTINGS.outcome_success_probability_threshold:
-        return f"모델은 높은 긍정률({positive_rate:.1%})과 리뷰 규모({reviews:,}개)를 근거로 이 게임을 성공 패턴에 가깝게 봅니다. 지원 언어 {languages}개도 시장 확장성 신호입니다."
-    if probability >= SETTINGS.outcome_mid_probability_threshold:
-        return f"모델은 이 게임을 중간권 잠재력으로 봅니다. 긍정률({positive_rate:.1%})은 참고할 만하지만 리뷰 규모({reviews:,}개)와 상점 feature 조합을 함께 확인해야 합니다."
-    return f"모델은 이 게임을 위험 사례로 봅니다. 리뷰 규모({reviews:,}개), 긍정률({positive_rate:.1%}), 상점 feature 조합이 성공 표본과 거리가 있습니다."
+    label = _observed_outcome_label(row)
+    if label == "성공":
+        return f"관측 결과 성공 사례입니다. 90일 긍정률({positive_rate:.1%})과 리뷰 규모({reviews:,}개), 지원 언어 {languages}개를 근거로 비교할 수 있습니다."
+    if label == "중박":
+        return f"관측 결과 중박 사례입니다. 긍정률({positive_rate:.1%})과 리뷰 규모({reviews:,}개)를 함께 확인해야 합니다."
+    return f"관측 결과 실패/주의 사례입니다. 리뷰 규모({reviews:,}개), 긍정률({positive_rate:.1%}), 상점 feature 조합을 관측 성공 사례와 비교해야 합니다."
 
 
 def _platform_count(row: dict[str, object]) -> int:
@@ -592,25 +670,11 @@ def _recommendations(topics: pd.DataFrame) -> dict[str, object]:
 
 
 def _external_data(data: pd.DataFrame) -> dict[str, object]:
-    webzine_total = int(_numeric_series(data, "webzine_mentions").sum()) if not data.empty else 0
-    webzine_sources = int(_numeric_series(data, "webzine_source_count").max()) if "webzine_source_count" in data.columns and not data.empty else 0
-    attention_total = int(_numeric_series(data, "external_attention_score").sum()) if not data.empty else 0
     critic_scores = _numeric_series(data, "metacritic_score") if "metacritic_score" in data.columns else pd.Series(dtype=float)
     critic_count = int((critic_scores > 0).sum())
-    owners = _owners_proxy_series(data)
-    owners_count = int((owners > 0).sum())
     return {
-        "webzine": _availability(webzine_total > 0 or webzine_sources > 0, "웹진 RSS/검색 경로 사용 가능", "데이터 부족으로 웹진 관심도 카드를 비활성화했습니다.", {"mention_count": webzine_total, "source_count": webzine_sources, "attention_score": attention_total}),
         "critic_score": _availability(critic_count > 0, "평점 서비스 데이터 사용 가능", "평점 서비스 매칭 데이터 부족으로 비활성화했습니다.", {"matched_games": critic_count, "average_score": float(critic_scores[critic_scores > 0].mean()) if critic_count else 0.0}),
-        "steamspy": _availability(owners_count > 0, "SteamSpy owners proxy 데이터 사용 가능", "SteamSpy owners 데이터가 아직 수집되지 않아 비활성화했습니다.", {"owners_proxy_count": owners_count, "average_owners_proxy": float(owners[owners > 0].mean()) if owners_count else 0.0}),
     }
-
-
-def _owners_proxy_series(data: pd.DataFrame) -> pd.Series:
-    for column in ["steamspy_owners_median", "owners_median", "owners_proxy"]:
-        if column in data.columns:
-            return _numeric_series(data, column)
-    return pd.Series(dtype=float)
 
 
 def _availability(enabled: bool, ok_reason: str, disabled_reason: str, metrics: dict[str, object]) -> dict[str, object]:
