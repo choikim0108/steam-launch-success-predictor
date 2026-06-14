@@ -18,6 +18,11 @@
   - `reports/90d/RUN_SUMMARY.md`: 90일 파이프라인 실행 요약
   - `reports/90d/CONCLUSIONS.md`: 주요 결론 요약
   - `models/90d/steam_success_model.joblib`: 90일 성공 분류 모델 artifact
+  - `presentation/final_90d_black/steam_success_90d_black_deck.pptx`: 최종 발표 자료
+  - `presentation/구현영상_대본.md`: 구현 영상 설명 대본
+  - `presentation/system_pipeline_diagram.png`: 수집·전처리·모델링·리포트 파이프라인 구조도
+  - `presentation/video_section4_model_comparison.png`: 구현 영상 모델 성능 비교 보조 이미지
+  - `presentation/video_section5_usage_limits.png`: 구현 영상 활용 범위와 한계 보조 이미지
 
 ## 데이터와 기준
 
@@ -61,6 +66,15 @@ success_90d = 출시 후 90일 리뷰 수 >= 500 AND 출시 후 90일 긍정률 
 2. `내 기획 진단`: 사용자가 선택한 장르/태그/상세 조건의 기획 잠재력과 선택 조건 기반 참고 게임
 3. `근거 사례`: 전체 데이터 기준 관측 성공 사례와 관측 실패/주의 사례
 4. `판단 기준`: 모델 feature importance, 성공/중박/실패 기준, 모델·파이프라인 구조
+
+## 발표 및 구현 영상 자료
+
+- `presentation/final_90d_black/`: 최종 발표 PPTX와 발표 대본, 평가기준 반영 체크리스트
+- `presentation/system_pipeline_diagram.png`: 구현 영상 2번 구간에서 사용하는 전체 시스템 파이프라인 설명 이미지
+- `reports/90d/market_insight_site.html`: 구현 영상 3번 구간에서 실제 개발자 활용 시나리오를 보여주는 HTML 리포트
+- `presentation/video_section4_model_comparison.png`: 구현 영상 4번 구간에서 Logistic Regression과 Random Forest 성능을 비교하는 이미지
+- `presentation/video_section5_usage_limits.png`: 구현 영상 5번 구간에서 활용 가능성과 한계를 정리하는 이미지
+- `presentation/구현영상_대본.md`: 위 자료를 순서대로 설명하기 위한 구현 영상 대본
 
 ## 현재 프로젝트 구조
 
